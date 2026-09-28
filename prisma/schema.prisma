@@ -1,0 +1,630 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  ANONYMIZED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  ACCOUNTANT
+  MEMBER
+  VIEWER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+  VOID
+}
+
+enum DiscountType {
+  NONE
+  FIXED
+  PERCENTAGE
+}
+
+enum PaymentStatus {
+  RECORDED
+  REVERSED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  UPI
+  CHEQUE
+  CARD_EXTERNAL
+  OTHER
+}
+
+enum CustomerStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum RefreshSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  COMPROMISED
+}
+
+enum RefreshTokenStatus {
+  ACTIVE
+  USED
+  REVOKED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum ExpenseCategoryStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ExpenseStatus {
+  ACTIVE
+  VOIDED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum NotificationType {
+  INVOICE_DUE_SOON
+  INVOICE_OVERDUE
+  PAYMENT_RECORDED
+  REPORT_READY
+  SYSTEM
+}
+
+enum ReminderType {
+  DUE_SOON
+  OVERDUE
+}
+
+enum DeliveryChannel {
+  IN_APP
+  EMAIL
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  SUPPRESSED
+  FAILED
+}
+
+enum ReportType {
+  INVOICE_REGISTER
+  RECEIVABLES
+  PAYMENT_REGISTER
+  EXPENSE_REGISTER
+  CASH_FLOW
+  CASH_BASIS_PERFORMANCE
+}
+
+enum ExportStatus {
+  PENDING
+  RUNNING
+  READY
+  FAILED
+  EXPIRED
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+}
+
+enum EventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  WORKER
+}
+
+enum AuditOutcome {
+  SUCCESS
+  DENIED
+  FAILURE
+}
+
+enum AuditSource {
+  API
+  WORKER
+  SYSTEM
+}
+
+model User {
+  id                String           @id @default(uuid()) @db.Uuid
+  email             String           @db.VarChar(320)
+  normalizedEmail   String           @unique @db.VarChar(320)
+  passwordHash      String           @db.VarChar(255)
+  firstName         String           @db.VarChar(100)
+  lastName          String           @db.VarChar(100)
+  status            UserStatus       @default(ACTIVE)
+  emailVerifiedAt   DateTime?        @db.Timestamptz(3)
+  lastLoginAt       DateTime?        @db.Timestamptz(3)
+  passwordChangedAt DateTime?        @db.Timestamptz(3)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @db.Timestamptz(3)
+  sessions          RefreshSession[]
+  memberships       Membership[]
+
+  @@map("users")
+}
+
+model Organization {
+  id                      String                   @id @default(uuid()) @db.Uuid
+  legalName               String                   @db.VarChar(200)
+  displayName             String                   @db.VarChar(200)
+  slug                    String?                  @unique @db.VarChar(100)
+  baseCurrency            String                   @db.Char(3)
+  timezone                String                   @db.VarChar(64)
+  locale                  String                   @default("en-IN") @db.VarChar(35)
+  invoicePrefix           String                   @default("INV-") @db.VarChar(12)
+  invoiceNumberPadding    Int                      @default(6) @db.SmallInt
+  defaultPaymentTermsDays Int                      @default(30) @db.SmallInt
+  currencyLockedAt        DateTime?                @db.Timestamptz(3)
+  status                  OrganizationStatus       @default(ACTIVE)
+  version                 Int                      @default(1)
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  memberships             Membership[]
+  customers               Customer[]
+  invoiceSequence         InvoiceSequence?
+  invoices                Invoice[]
+  invitations             OrganizationInvitation[]
+  expenseCategories       ExpenseCategory[]
+  expenses                Expense[]
+  notifications           Notification[]
+  reportExports           ReportExport[]
+  idempotencyRecords      IdempotencyRecord[]
+  pendingEvents           PendingEvent[]
+  auditLogs               AuditLog[]
+  reminderDeliveries      ReminderDelivery[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id                String           @id @default(uuid()) @db.Uuid
+  organizationId    String           @db.Uuid
+  userId            String           @db.Uuid
+  role              MembershipRole
+  status            MembershipStatus @default(ACTIVE)
+  organizationTitle String?          @db.VarChar(100)
+  joinedAt          DateTime?        @db.Timestamptz(3)
+  suspendedAt       DateTime?        @db.Timestamptz(3)
+  removedAt         DateTime?        @db.Timestamptz(3)
+  version           Int              @default(1)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @db.Timestamptz(3)
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId])
+  @@unique([organizationId, id])
+  @@index([userId, status, organizationId])
+  @@index([organizationId, status, role, id])
+  @@map("memberships")
+}
+
+model RefreshSession {
+  id               String               @id @default(uuid()) @db.Uuid
+  userId           String               @db.Uuid
+  status           RefreshSessionStatus @default(ACTIVE)
+  expiresAt        DateTime             @db.Timestamptz(3)
+  revokedAt        DateTime?            @db.Timestamptz(3)
+  revokeReason     String?              @db.VarChar(50)
+  lastUsedAt       DateTime?            @db.Timestamptz(3)
+  deviceLabel      String?              @db.VarChar(120)
+  createdIp        String?              @db.Inet
+  createdUserAgent String?              @db.VarChar(512)
+  createdAt        DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(3)
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokens           RefreshToken[]
+
+  @@index([userId, status, expiresAt])
+  @@map("refresh_sessions")
+}
+
+model RefreshToken {
+  id                String             @id @default(uuid()) @db.Uuid
+  sessionId         String             @db.Uuid
+  tokenHash         String             @unique @db.Char(64)
+  status            RefreshTokenStatus @default(ACTIVE)
+  expiresAt         DateTime           @db.Timestamptz(3)
+  usedAt            DateTime?          @db.Timestamptz(3)
+  replacedByTokenId String?            @db.Uuid
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  session           RefreshSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, status])
+  @@map("refresh_tokens")
+}
+
+model Customer {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @db.Uuid
+  customerCode    String?        @db.VarChar(50)
+  displayName     String         @db.VarChar(200)
+  email           String?        @db.VarChar(320)
+  status          CustomerStatus @default(ACTIVE)
+  createdByUserId String         @db.Uuid
+  version         Int            @default(1)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invoices        Invoice[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, customerCode])
+  @@index([organizationId, status, displayName, id])
+  @@map("customers")
+}
+
+model InvoiceSequence {
+  organizationId String       @id @db.Uuid
+  nextValue      BigInt       @default(1)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@map("invoice_sequences")
+}
+
+model Invoice {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @db.Uuid
+  customerId         String             @db.Uuid
+  status             InvoiceStatus      @default(DRAFT)
+  invoiceNumber      String?            @db.VarChar(40)
+  sequenceValue      BigInt?
+  numberPrefix       String?            @db.VarChar(12)
+  issueDate          DateTime           @db.Date
+  dueDate            DateTime           @db.Date
+  currency           String             @db.Char(3)
+  discountType       DiscountType       @default(NONE)
+  discountValue      Decimal            @default(0) @db.Decimal(19, 6)
+  taxRate            Decimal            @default(0) @db.Decimal(9, 6)
+  subtotal           Decimal            @default(0) @db.Decimal(19, 4)
+  discountTotal      Decimal            @default(0) @db.Decimal(19, 4)
+  taxableTotal       Decimal            @default(0) @db.Decimal(19, 4)
+  taxTotal           Decimal            @default(0) @db.Decimal(19, 4)
+  total              Decimal            @default(0) @db.Decimal(19, 4)
+  amountPaid         Decimal            @default(0) @db.Decimal(19, 4)
+  balanceDue         Decimal            @default(0) @db.Decimal(19, 4)
+  createdByUserId    String             @db.Uuid
+  issuedAt           DateTime?          @db.Timestamptz(3)
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer           Customer           @relation(fields: [organizationId, customerId], references: [organizationId, id], onDelete: Restrict)
+  items              InvoiceItem[]
+  payments           Payment[]
+  reminderDeliveries ReminderDelivery[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, invoiceNumber])
+  @@unique([organizationId, sequenceValue])
+  @@index([organizationId, status, issueDate, id])
+  @@index([organizationId, dueDate, id])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  invoiceId      String   @db.Uuid
+  description    String   @db.VarChar(500)
+  quantity       Decimal  @db.Decimal(19, 6)
+  unitPrice      Decimal  @db.Decimal(19, 4)
+  lineAmount     Decimal  @db.Decimal(19, 4)
+  sortOrder      Int
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  invoice        Invoice  @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([invoiceId, sortOrder])
+  @@index([organizationId, invoiceId, sortOrder])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id              String           @id @default(uuid()) @db.Uuid
+  organizationId  String           @db.Uuid
+  invoiceId       String           @db.Uuid
+  amount          Decimal          @db.Decimal(19, 4)
+  currency        String           @db.Char(3)
+  paymentDate     DateTime         @db.Date
+  paymentMethod   PaymentMethod
+  status          PaymentStatus    @default(RECORDED)
+  createdByUserId String           @db.Uuid
+  recordedAt      DateTime         @default(now()) @db.Timestamptz(3)
+  reversedAt      DateTime?        @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
+  invoice         Invoice          @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict)
+  reversal        PaymentReversal?
+
+  @@unique([organizationId, id])
+  @@index([organizationId, invoiceId, status, paymentDate, id])
+  @@index([organizationId, paymentDate, id])
+  @@map("payments")
+}
+
+model PaymentReversal {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  paymentId        String   @unique @db.Uuid
+  amount           Decimal  @db.Decimal(19, 4)
+  reason           String   @db.VarChar(500)
+  reversalDate     DateTime @db.Date
+  reversedByUserId String   @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  payment          Payment  @relation(fields: [organizationId, paymentId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, paymentId])
+  @@index([organizationId, reversalDate, id])
+  @@map("payment_reversals")
+}
+
+model OrganizationInvitation {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @db.Uuid
+  email              String             @db.VarChar(320)
+  normalizedEmail    String             @db.VarChar(320)
+  role               MembershipRole
+  tokenHash          String             @unique @db.Char(64)
+  status             InvitationStatus   @default(PENDING)
+  expiresAt          DateTime           @db.Timestamptz(3)
+  invitedByUserId    String             @db.Uuid
+  acceptedByUserId   String?            @db.Uuid
+  acceptedAt         DateTime?          @db.Timestamptz(3)
+  revokedAt          DateTime?          @db.Timestamptz(3)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  reminderDeliveries ReminderDelivery[]
+
+  @@index([organizationId, status])
+  @@index([status, expiresAt])
+  @@map("organization_invitations")
+}
+
+model ExpenseCategory {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @db.Uuid
+  name           String                @db.VarChar(100)
+  normalizedName String                @db.VarChar(100)
+  description    String?               @db.VarChar(500)
+  systemKey      String?               @db.VarChar(50)
+  status         ExpenseCategoryStatus @default(ACTIVE)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime              @updatedAt @db.Timestamptz(3)
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  expenses       Expense[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, normalizedName])
+  @@unique([organizationId, systemKey])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @db.Uuid
+  expenseCategoryId String          @db.Uuid
+  vendorPayee       String?         @db.VarChar(200)
+  amount            Decimal         @db.Decimal(19, 4)
+  currency          String          @db.Char(3)
+  expenseDate       DateTime        @db.Date
+  description       String          @db.VarChar(500)
+  reference         String?         @db.VarChar(150)
+  notes             String?         @db.VarChar(1000)
+  status            ExpenseStatus   @default(ACTIVE)
+  createdByUserId   String          @db.Uuid
+  voidedByUserId    String?         @db.Uuid
+  voidedAt          DateTime?       @db.Timestamptz(3)
+  voidReason        String?         @db.VarChar(500)
+  version           Int             @default(1)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  category          ExpenseCategory @relation(fields: [organizationId, expenseCategoryId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, status, expenseDate, id])
+  @@index([organizationId, expenseCategoryId, expenseDate, id])
+  @@map("expenses")
+}
+
+model Notification {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @db.Uuid
+  recipientUserId    String             @db.Uuid
+  type               NotificationType
+  status             NotificationStatus @default(UNREAD)
+  title              String             @db.VarChar(200)
+  body               String             @db.VarChar(2000)
+  relatedEntityType  String?            @db.VarChar(50)
+  relatedEntityId    String?            @db.Uuid
+  metadata           Json?
+  deduplicationKey   String?            @db.VarChar(200)
+  scheduledAt        DateTime?          @db.Timestamptz(3)
+  readAt             DateTime?          @db.Timestamptz(3)
+  archivedAt         DateTime?          @db.Timestamptz(3)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  reminderDeliveries ReminderDelivery[]
+
+  @@unique([organizationId, recipientUserId, deduplicationKey])
+  @@unique([organizationId, id])
+  @@index([organizationId, recipientUserId, status, createdAt, id])
+  @@map("notifications")
+}
+
+model ReminderDelivery {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  organizationId           String                  @db.Uuid
+  invoiceId                String                  @db.Uuid
+  notificationId           String?                 @db.Uuid
+  reminderType             ReminderType
+  effectiveDate            DateTime                @db.Date
+  channel                  DeliveryChannel
+  status                   DeliveryStatus          @default(PENDING)
+  attemptCount             Int                     @default(0)
+  providerMessageId        String?                 @db.VarChar(200)
+  lastErrorCode            String?                 @db.VarChar(100)
+  sentAt                   DateTime?               @db.Timestamptz(3)
+  failedAt                 DateTime?               @db.Timestamptz(3)
+  createdAt                DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                @updatedAt @db.Timestamptz(3)
+  organization             Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invoice                  Invoice                 @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict)
+  notification             Notification?           @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  organizationInvitation   OrganizationInvitation? @relation(fields: [organizationInvitationId], references: [id])
+  organizationInvitationId String?                 @db.Uuid
+
+  @@unique([organizationId, invoiceId, reminderType, effectiveDate, channel])
+  @@map("reminder_deliveries")
+}
+
+model ReportExport {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @db.Uuid
+  requestedByUserId String       @db.Uuid
+  reportType        ReportType
+  format            String       @default("CSV") @db.VarChar(10)
+  parameters        Json
+  status            ExportStatus @default(PENDING)
+  storageObjectKey  String?      @db.VarChar(512)
+  checksum          String?      @db.VarChar(128)
+  rowCount          BigInt?
+  errorCode         String?      @db.VarChar(100)
+  expiresAt         DateTime?    @db.Timestamptz(3)
+  completedAt       DateTime?    @db.Timestamptz(3)
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt, id])
+  @@index([organizationId, status, createdAt])
+  @@index([status, expiresAt])
+  @@map("report_exports")
+}
+
+model IdempotencyRecord {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  userId         String            @db.Uuid
+  operation      String            @db.VarChar(80)
+  key            String            @db.VarChar(128)
+  requestHash    String            @db.Char(64)
+  status         IdempotencyStatus @default(PROCESSING)
+  resourceType   String?           @db.VarChar(50)
+  resourceId     String?           @db.Uuid
+  httpStatus     Int?              @db.SmallInt
+  expiresAt      DateTime          @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId, operation, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+model PendingEvent {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String?       @db.Uuid
+  eventType      String        @db.VarChar(100)
+  eventVersion   Int           @db.SmallInt
+  aggregateType  String        @db.VarChar(50)
+  aggregateId    String        @db.Uuid
+  payload        Json
+  status         EventStatus   @default(PENDING)
+  attemptCount   Int           @default(0)
+  availableAt    DateTime      @default(now()) @db.Timestamptz(3)
+  claimedAt      DateTime?     @db.Timestamptz(3)
+  processedAt    DateTime?     @db.Timestamptz(3)
+  lastErrorCode  String?       @db.VarChar(100)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([status, availableAt, id])
+  @@index([organizationId, aggregateType, aggregateId])
+  @@map("pending_events")
+}
+
+model AuditLog {
+  id                String         @id @default(uuid()) @db.Uuid
+  organizationId    String?        @db.Uuid
+  actorType         AuditActorType
+  actorUserId       String?        @db.Uuid
+  actorMembershipId String?        @db.Uuid
+  actorSessionId    String?        @db.Uuid
+  action            String         @db.VarChar(100)
+  entityType        String         @db.VarChar(50)
+  entityId          String         @db.Uuid
+  outcome           AuditOutcome   @default(SUCCESS)
+  changedFields     Json?
+  beforeData        Json?
+  afterData         Json?
+  metadata          Json?
+  requestId         String?        @db.VarChar(100)
+  correlationId     String?        @db.VarChar(100)
+  ipAddress         String?        @db.Inet
+  userAgent         String?        @db.VarChar(512)
+  source            AuditSource
+  occurredAt        DateTime       @default(now()) @db.Timestamptz(3)
+  organization      Organization?  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, occurredAt, id])
+  @@index([organizationId, entityType, entityId, occurredAt, id])
+  @@index([organizationId, actorUserId, occurredAt, id])
+  @@map("audit_logs")
+}

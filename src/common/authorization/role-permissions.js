@@ -1,0 +1,87 @@
+import { PERMISSIONS } from './permissions.js';
+
+const all = Object.values(PERMISSIONS);
+const ownerOnly = new Set([
+  PERMISSIONS.ORGANIZATION_CLOSE,
+  PERMISSIONS.ORGANIZATION_TRANSFER_OWNERSHIP,
+]);
+const customerPermissions = [
+  PERMISSIONS.CUSTOMER_READ,
+  PERMISSIONS.CUSTOMER_CREATE,
+  PERMISSIONS.CUSTOMER_UPDATE,
+  PERMISSIONS.CUSTOMER_ARCHIVE,
+];
+const invoicePermissions = [
+  PERMISSIONS.INVOICE_READ,
+  PERMISSIONS.INVOICE_CREATE,
+  PERMISSIONS.INVOICE_UPDATE_DRAFT,
+  PERMISSIONS.INVOICE_DELETE_DRAFT,
+  PERMISSIONS.INVOICE_ISSUE,
+  PERMISSIONS.INVOICE_CANCEL,
+  PERMISSIONS.INVOICE_VOID,
+];
+const paymentPermissions = [
+  PERMISSIONS.PAYMENT_READ,
+  PERMISSIONS.PAYMENT_CREATE,
+  PERMISSIONS.PAYMENT_REVERSE,
+];
+const expensePermissions = [
+  PERMISSIONS.EXPENSE_READ,
+  PERMISSIONS.EXPENSE_CREATE,
+  PERMISSIONS.EXPENSE_UPDATE,
+  PERMISSIONS.EXPENSE_VOID,
+  PERMISSIONS.EXPENSE_CATEGORY_MANAGE,
+];
+const reportingPermissions = [
+  PERMISSIONS.ANALYTICS_READ,
+  PERMISSIONS.REPORT_READ,
+  PERMISSIONS.REPORT_EXPORT,
+  PERMISSIONS.AUDIT_READ,
+];
+const notificationPermissions = [
+  PERMISSIONS.NOTIFICATION_READ,
+  PERMISSIONS.NOTIFICATION_UPDATE_SELF,
+];
+
+export const ROLE_PERMISSIONS = new Map([
+  ['OWNER', new Set(all)],
+  ['ADMIN', new Set(all.filter((permission) => !ownerOnly.has(permission)))],
+  [
+    'ACCOUNTANT',
+    new Set([
+      PERMISSIONS.ORGANIZATION_READ,
+      ...customerPermissions,
+      ...invoicePermissions,
+      ...paymentPermissions,
+      ...expensePermissions,
+      ...reportingPermissions,
+      ...notificationPermissions,
+    ]),
+  ],
+  [
+    'MEMBER',
+    new Set([
+      PERMISSIONS.ORGANIZATION_READ,
+      ...customerPermissions,
+      PERMISSIONS.INVOICE_READ,
+      PERMISSIONS.INVOICE_CREATE,
+      PERMISSIONS.INVOICE_UPDATE_DRAFT,
+      PERMISSIONS.INVOICE_DELETE_DRAFT,
+      PERMISSIONS.INVOICE_ISSUE,
+      ...notificationPermissions,
+    ]),
+  ],
+  [
+    'VIEWER',
+    new Set([
+      PERMISSIONS.ORGANIZATION_READ,
+      PERMISSIONS.CUSTOMER_READ,
+      PERMISSIONS.INVOICE_READ,
+      PERMISSIONS.EXPENSE_READ,
+      PERMISSIONS.ANALYTICS_READ,
+      PERMISSIONS.REPORT_READ,
+      PERMISSIONS.REPORT_EXPORT,
+      ...notificationPermissions,
+    ]),
+  ],
+]);
