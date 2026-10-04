@@ -11,6 +11,9 @@ import { HealthModule } from './modules/health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { OrganizationsModule } from './modules/organizations/organizations.module.js';
 import { MembershipsModule } from './modules/memberships/memberships.module.js';
+import { CustomersModule } from './modules/customers/customers.module.js';
+import { InvoicesModule } from './modules/invoices/invoices.module.js';
+import { PaymentsModule } from './modules/payments/payments.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 
 @Module({
@@ -25,6 +28,9 @@ import { ObservabilityModule } from './observability/observability.module.js';
     AuthModule,
     OrganizationsModule,
     MembershipsModule,
+    CustomersModule,
+    InvoicesModule,
+    PaymentsModule,
     HealthModule,
   ],
 })

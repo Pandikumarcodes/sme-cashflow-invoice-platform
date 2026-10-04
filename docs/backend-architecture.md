@@ -1,5 +1,38 @@
 # Backend Architecture
 
+Prompt 14 implements the eight Invoice routes with pure Decimal calculation,
+an Invoice-specific transaction-scoped lock/number allocator, and narrow exported
+Customer eligibility/Organization settings contracts. The application owns the
+transaction; every participant receives the same client. Organization settings
+updates and first-draft currency locking share the Organization row lock to
+prevent a concurrent currency change. Invoice update/issue/delete/cancel/void
+acquire the tenant Invoice lock first; issue subsequently locks settings and
+sequence. Required audits and issue PendingEvent commit with the document.
+No business queue dispatch is introduced. Optional document text/reference and
+recommended Invoice idempotency replay remain deferred.
+
+Prompt 15 implements Payments record/read/reverse through the exported
+InvoiceSettlement contract. Dependencies remain acyclic: Payments → Invoices;
+Invoices never imports Payments. PaymentPersistence is feature-specific, and
+IdempotencyService only handles claims/results using the caller's transaction.
+Business-date parsing is shared; financial state derivation remains Invoice-owned.
+
+Record and reverse own READ COMMITTED transactions, rechecking current tenant
+membership and canonical permissions with the transaction client. Scoped identity
+reads precede idempotency claiming; fresh mutations lock Invoice, then Payment
+for reversal. Lifecycle and balance checks reload authoritative state under that
+lock. Cancel/void use the same Invoice lock. PostgreSQL RECORDED sums update only
+paid/balance caches and version; issued-document fields remain unchanged.
+
+Payment facts, one full reversal, audit, ID-only versioned PendingEvent, and claim
+completion are atomic. Failures propagate and roll back all participants.
+Completed claims replay original financial receipts from immutable audits plus
+immutable Payment facts after current authorization, including after reversal or
+void. Idempotency records store resource/status references, not response blobs;
+30-day retention is recorded, without a cleanup worker. Cache mismatch fails
+closed (409 INVOICE_SETTLEMENT_INCONSISTENT). Optional Payment reference/notes
+and reference search await schema support. No business queue is introduced.
+
 ## 1. Architecture overview
 
 The backend is a NestJS modular monolith deployed as one API process plus one or more worker processes from the same codebase. PostgreSQL is the system of record. Redis supports BullMQ, rate-limiting counters, and short-lived coordination; financial correctness never depends on Redis. Prisma is used behind module-owned repositories/application services. HTTP controllers are adapters, not business-rule containers.
@@ -378,3 +411,75 @@ Not every simple module needs every layer/file. A small module can combine appli
 ## 17. Evolution boundaries
 
 Potential future extraction candidates are notifications/email and report generation because they are asynchronous and have clear contracts. Financial facts should remain together until scale and team ownership justify decomposition. RLS, read replicas, materialized analytics, object storage, and custom roles are evidence-driven enhancements, not MVP prerequisites.
+
+## 18. Implemented tenant isolation convention (Prompt 12)
+
+`AccessAuthGuard` establishes the current active user/session from the JWT and
+PostgreSQL. `AuthorizationGuard` treats the route organization ID as requested
+scope, then calls `resolveTenantAccess` with the canonical required permissions.
+The resolver loads the current ACTIVE Membership in an ACTIVE Organization and
+checks the central RBAC map. It returns one frozen `request.tenant` context:
+`userId`, `sessionId`, `organizationId`, `membershipId`, `role`,
+`membershipStatus`, and authentication recency for existing ownership rules.
+Organization and membership fields come from PostgreSQL. The existing
+`request.authorization` name aliases this same context; it is not a second
+snapshot. Permissions remain in the permission engine.
+
+Controllers pass this context explicitly to application services. Body, query,
+header, JWT role claims, and observability AsyncLocalStorage never establish
+tenant authority. The query helpers reject arbitrary objects and copied context
+objects using resolver-owned provenance. This is an internal programming guard,
+not a substitute for authentication or current membership resolution.
+
+Services re-resolve access on their chosen Prisma client before tenant queries;
+privileged commands resolve on the transaction client. Existing application
+entry points also accept authenticated identity plus requested organization ID,
+but always perform this resolution. A resolved context cannot be switched to a
+different organization. Contexts are operation snapshots, never permission or
+membership caches. Role/status changes apply with the existing JWT on the next
+request, and mutations repeat the check in their transaction.
+
+```js
+const { tenant } = await resolveTenantAccess(
+  tx, auth, organizationId, authorization, [PERMISSIONS.MEMBERSHIP_READ],
+);
+const membership = requireTenantResource(
+  await tx.membership.findFirst({
+    where: tenantResourceWhere(tenant, membershipId),
+  }),
+  'Membership',
+);
+```
+
+`database/helpers/tenant-query.js` contains only explicit predicate/error helpers:
+
+- `tenantWhere(tenant, filters)` joins the tenant predicate and additional
+  allowlisted filters with `AND`; extra filters and `OR` cannot replace scope.
+- `tenantResourceWhere(tenant, id)` requires an ID and returns both `id` and
+  `organizationId`. Use it for reads and mutations; optimistic updates also
+  include version/state and verify affected-row counts.
+- `requireTenantResource(row, entity)` returns an accessible row or the same
+  safe `RESOURCE_NOT_FOUND` error for a foreign resource and a nonexistent one.
+  Never perform an unscoped existence probe to distinguish them.
+
+These helpers acquire no client and open no transaction. Both normal Prisma and
+transaction clients use the same predicates. Organization itself uses its
+resolved primary ID rather than an `organizationId` field. Application services
+own transactions and all query/audit participants use the same client. Domain,
+ownership, lifecycle, and concurrency rules remain mandatory after permission
+checks. Non-members/inactive membership or organization access is concealed as
+404; an active member lacking permission receives 403.
+
+Global auth/organization creation and the user's organization discovery list
+are separate identity-scoped flows. Invitation acceptance is an existing
+credential flow: the hashed invitation token, authenticated recipient email,
+pending invitation, and active organization are checked before granting a
+membership. It does not require a prior active membership or accept a client
+organization ID as authority.
+
+PostgreSQL remains tenant and authorization truth; Redis has no tenant or
+permission cache. Application filtering complements the existing composite
+tenant foreign keys (Invoice/Customer, InvoiceItem/Invoice, Payment/Invoice,
+PaymentReversal/Payment, Expense/ExpenseCategory, ReminderDelivery/Invoice).
+Neither replaces the other. Prompt 12 changes no schema, migrations, financial
+constraints, or product HTTP routes.

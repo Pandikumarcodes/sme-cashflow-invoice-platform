@@ -6,16 +6,22 @@ verified against controllers in `src/`; planned routes come from
 
 ## 1. API Summary
 
-- Current implemented APIs: **23**
+- Current implemented APIs: **40**
 - Estimated final APIs: **60–70**
-- Estimated remaining APIs: **37–47**
-- Current milestone: **Prompt 11 complete / before Prompt 12**
+- Estimated remaining APIs: **20–30**
+- Current milestone: **Prompt 15 Payments / before Prompt 16: Expenses**
 - Base path: `/api/v1`
 - Authentication: Bearer access token plus HttpOnly refresh cookie
 - Backend deployment: Local development only
 
 The estimate is based on the current API-contract route map. It is not a
 commitment that every planned route will remain separate.
+
+Prompt 12 introduced trusted tenant context and explicit Prisma query helpers
+with **zero new HTTP APIs**, retaining 23 APIs at that milestone. Prompt 13 uses
+that infrastructure and adds **five Customer APIs**, bringing the count to **28**.
+Prompt 14 added **eight Invoice APIs**, bringing the count to **36**.
+Prompt 15 adds **four Payment APIs**, bringing the current count to **40**.
 
 ---
 
@@ -27,9 +33,9 @@ commitment that every planned route will remain separate.
 | Auth | 6 | 0 | IMPLEMENTED |
 | Organizations | 5 | 0 | IMPLEMENTED |
 | Memberships / Invitations | 10 | 0 | IMPLEMENTED WITH CAVEAT |
-| Customers | 0 | 5 | PLANNED — NOT IMPLEMENTED |
-| Invoices | 0 | 8 | PLANNED — NOT IMPLEMENTED |
-| Payments | 0 | 4 | PLANNED — NOT IMPLEMENTED |
+| Customers | 5 | 0 | IMPLEMENTED |
+| Invoices | 8 | 0 | IMPLEMENTED |
+| Payments | 4 | 0 | IMPLEMENTED |
 | Expenses | 0 | 9 | PLANNED — NOT IMPLEMENTED |
 | Cash Flow | 0 | 1 | PLANNED — NOT IMPLEMENTED |
 | P&L | 0 | 1 | PLANNED — NOT IMPLEMENTED |
@@ -37,7 +43,7 @@ commitment that every planned route will remain separate.
 | Notifications | 0 | 3 | PLANNED — NOT IMPLEMENTED |
 | Reports | 0 | 8 | PLANNED — NOT IMPLEMENTED |
 | Audit Logs | 0 | 1 | PLANNED — NOT IMPLEMENTED |
-| **Total** | **23** | **42** | **Estimated final baseline: 65** |
+| **Total** | **40** | **25** | **Estimated final baseline: 65** |
 
 The final range allows for planned API consolidation or additions. A planned
 count does not indicate that a database model or service exists.
@@ -71,8 +77,25 @@ count does not indicate that a database model or service exists.
 | 21 | POST | `/api/v1/organizations/:organizationId/members/:membershipId/reactivate` | Memberships | Bearer + active membership | `membership.suspend` | Reactivates retained membership using `If-Match` | Future frontend: Members page |
 | 22 | DELETE | `/api/v1/organizations/:organizationId/members/:membershipId` | Memberships | Bearer + active membership | `membership.remove` | Marks membership as removed using `If-Match` | Future frontend: Members page |
 | 23 | POST | `/api/v1/organizations/:organizationId/transfer-ownership` | Memberships | Bearer + recent authentication | `organization.transfer_ownership` | Atomically transfers Owner role | Future frontend: organization settings |
+| 24 | POST | `/api/v1/organizations/:organizationId/customers` | Customers | Bearer + active membership | `customer.create` | Creates customer with audit | Future frontend: Customers |
+| 25 | GET | `/api/v1/organizations/:organizationId/customers` | Customers | Bearer + active membership | `customer.read` | Lists/searches customers with cursor pagination | Future frontend: Customers |
+| 26 | GET | `/api/v1/organizations/:organizationId/customers/:customerId` | Customers | Bearer + active membership | `customer.read` | Reads active or archived customer | Future frontend: Customer Details |
+| 27 | PATCH | `/api/v1/organizations/:organizationId/customers/:customerId` | Customers | Bearer + active membership | `customer.update` | Corrects customer fields using `If-Match` | Future frontend: Customer Details |
+| 28 | POST | `/api/v1/organizations/:organizationId/customers/:customerId/archive` | Customers | Bearer + active membership | `customer.archive` | Idempotently archives customer with audit | Future frontend: Customer Details |
+| 29 | POST | `/api/v1/organizations/:organizationId/invoices` | Invoices | Bearer + active membership | `invoice.create` | Create draft invoice | Future frontend: Invoices |
+| 30 | GET | `/api/v1/organizations/:organizationId/invoices` | Invoices | Bearer + active membership | `invoice.read` | List/search invoices | Future frontend: Invoices |
+| 31 | GET | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.read` | Get invoice details | Future frontend: Invoice Details |
+| 32 | PATCH | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.update_draft` | Update draft invoice | Future frontend: Invoice Details |
+| 33 | DELETE | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.delete_draft` | Delete draft invoice | Future frontend: Invoice Details |
+| 34 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/issue` | Invoices | Bearer + active membership | `invoice.issue` | Issue and number invoice | Future frontend: Invoice Details |
+| 35 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/cancel` | Invoices | Bearer + active membership | `invoice.cancel` | Cancel issued invoice without payment history | Future frontend: Invoice Details |
+| 36 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/void` | Invoices | Bearer + active membership | `invoice.void` | Void issued invoice without active payments | Future frontend: Invoice Details |
+| 37 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/payments` | Payments | Bearer + active membership | `payment.create` | Record payment with idempotency | Future frontend: Invoice Details |
+| 38 | GET | `/api/v1/organizations/:organizationId/payments` | Payments | Bearer + active membership | `payment.read` | List/filter payments | Future frontend: Payments |
+| 39 | GET | `/api/v1/organizations/:organizationId/payments/:paymentId` | Payments | Bearer + active membership | `payment.read` | Get payment and reversal | Future frontend: Payments |
+| 40 | POST | `/api/v1/organizations/:organizationId/payments/:paymentId/reverse` | Payments | Bearer + active membership | `payment.reverse` | Reverse payment in full with idempotency | Future frontend: Payments |
 
-**TOTAL IMPLEMENTED APIs: 23**
+**TOTAL IMPLEMENTED APIs: 40**
 
 ---
 
@@ -320,6 +343,106 @@ Database models used: `Organization`, `Membership`, `User`, `AuditLog`.
 Redis/BullMQ: neither.  
 Frontend/deployment usage: Future frontend: organization settings; browser API.
 
+### Customers
+
+All five Customer routes require Bearer authentication, current active Membership
+in an active Organization, and the permission listed above. They use `Customer`,
+`Membership`, `Organization`, and (for writes) `AuditLog`; no Redis/BullMQ work
+is performed. The frontend remains unimplemented.
+
+- **POST collection:** creates a customer from required `displayName` and optional
+  nullable `customerCode`/`email`; returns 201 Customer and ETag. Tenant, creator,
+  status, version, IDs, and timestamps are server-owned. Duplicate code in the
+  same tenant returns safe 409 `CUSTOMER_CODE_UNAVAILABLE`.
+- **GET collection:** lists ACTIVE by default; supports `status`, literal
+  case-insensitive display-name/email `search` (2–100 characters), `sortBy`
+  (`displayName`, `createdAt`, `updatedAt`), `sortOrder`, `limit` (1–100,
+  default 25), and opaque `after`. Returns `data` plus pagination `meta`.
+  Cursor tenant/filter/sort changes return 400 `INVALID_CURSOR`.
+- **GET item:** returns 200 Customer/ETag, including archived customers; foreign
+  and missing IDs return the same concealed 404.
+- **PATCH item:** updates only the three writable fields, requires at least one
+  field and `If-Match`, returns 200 Customer/ETag, and audits atomically. Null
+  clears code/email. Stale version returns 409 `CONCURRENT_MODIFICATION`.
+- **POST archive:** accepts `{}`, returns 200 retained ARCHIVED Customer/ETag.
+  The first transition increments version and audits atomically; repeated
+  archival does neither. Code remains reserved. No delete or restore API exists.
+
+Prompt 13 intentionally uses the existing minimal Prisma Customer model;
+broader conceptual phone/type/address/tax/terms/notes fields are not accepted.
+
+### Invoices
+
+All eight routes use AccessAuthGuard, AuthorizationGuard, canonical permissions,
+trusted context, current PostgreSQL membership, and scoped Invoice/Customer access.
+Mutations own one transaction and mandatory audit. No Redis/BullMQ is involved.
+Models: Invoice, InvoiceItem, InvoiceSequence, Customer, Organization, Membership,
+AuditLog; issue additionally writes PendingEvent.
+
+- **POST collection:** required customerId, issueDate, dueDate, discount, taxRate
+  and 1–1,000 allowlisted items. Returns 201 full DRAFT/ETag with server totals,
+  organization currency, null number; permanently locks currency atomically.
+- **GET collection:** cursor page, default issueDate desc/25 rows; all documented
+  status/paymentState/overdue/customer/date/search filters and five sorts.
+  Nullable numbers sort last. Cursors bind tenant/filter/sort; list date spans
+  are bounded to 1,825 days. Search is literal and case-insensitive.
+- **GET item:** full details/ETag, frozen name/email after issue; foreign/missing
+  IDs receive the same 404.
+- **PATCH item:** nonempty subset of implemented writable fields, If-Match,
+  DRAFT only, full item replacement when supplied; atomic recalculation/audit.
+- **DELETE item:** If-Match, DRAFT only, removes items/header with retained audit,
+  returns 204. Currency lock is permanent.
+- **POST issue:** empty/absent body and If-Match; locks/reloads/recalculates,
+  validates ACTIVE customer and positive total, locks sequence, renders current
+  prefix plus zero-padded counter, snapshots customer, returns 200 ISSUED/ETag.
+  Sequence increment, document, audit and PendingEvent commit together.
+- **POST cancel/void:** reason required; ISSUED only. Cancel blocks all payment
+  history; void blocks RECORDED payments. Returns retained 200 document/ETag
+  and evidence; terminal repeats conflict.
+
+Amounts are Decimal internally and strings externally; rounding is per currency,
+half away from zero. Payment/overdue are derived. Optional document text/reference
+and recommended invoice key replay remain deferred; version/state guards protect
+issue retries. Prompt 15 adds the Payment settlement writer described below.
+
+### Payments — IMPLEMENTED (Prompt 15)
+
+All four routes (rows 37–40) require Bearer authentication, current ACTIVE
+membership and canonical permission. OWNER, ADMIN and ACCOUNTANT are permitted;
+MEMBER and VIEWER have no Payment permissions. Models: Payment, PaymentReversal,
+Invoice, Organization, Membership, IdempotencyRecord, AuditLog and PendingEvent.
+No Redis/BullMQ call or business worker is introduced.
+
+- **Record:** required Idempotency-Key; body `{amount,paymentDate,method}`.
+  Positive decimal string obeying currency minor units; real YYYY-MM-DD date;
+  method CASH/BANK_TRANSFER/UPI/CHEQUE/CARD_EXTERNAL/OTHER. Returns 201 Payment
+  with Invoice financial summary. Currency, actors and timestamps are server-owned.
+- **List:** 200 `{data,meta:{limit,hasMore,nextCursor}}`; default 25/max 100,
+  paymentDate desc. Filters invoiceId/status/method/paymentDateFrom/To; inclusive
+  date span at most 1,825 days; sorts paymentDate/recordedAt/amount asc/desc.
+  Cursors bind tenant/filter/sort and use id for ties. No nested invoice GET
+  collection is registered.
+- **Detail:** 200 Payment with current Invoice settlement and nullable full
+  reversal detail, including server actors/timestamps.
+- **Reverse:** required key; `{reason,reversalDate}`, full-only. Returns 200
+  retained REVERSED Payment plus recalculated Invoice. A fresh key after reversal
+  yields 409 PAYMENT_ALREADY_REVERSED. No PATCH/DELETE Payment exists.
+- **Financial safety:** ISSUED only; Invoice then Payment lock order. All writers
+  share the Invoice lock; RECORDED sums maintain paid/balance caches and increment
+  version atomically. Overpayment returns 422 PAYMENT_EXCEEDS_BALANCE with
+  currency/remainingBalance. Drift returns 409 INVOICE_SETTLEMENT_INCONSISTENT.
+- **Idempotency:** organization/User/operation/key scope; hash includes normalized
+  amount, currency, resource, date and method/reason. Original status/body is
+  replayed with Idempotency-Replayed: true, even after later settlement or void.
+  Changed intent yields 409 IDEMPOTENCY_CONFLICT. References/status and immutable
+  audit financial receipts preserve the original result; no response blob is
+  stored on the claim. Retention is at least 30 days; no cleanup job exists.
+- **Atomic side effects:** PAYMENT_RECORDED / PAYMENT_REVERSED audit and versioned
+  ID-only PendingEvent commit with mutation and claim completion.
+- **Deferred:** reference/notes/reference search are absent from the schema and
+  rejected. Unknown/server-owned input is rejected. Foreign/missing resources
+  are concealed as 404. No processor, refund or reconciliation engine exists.
+
 ## 5. Current User Workflow and APIs
 
 ```text
@@ -337,50 +460,27 @@ Accept invitation
   → POST /api/v1/invitations/accept
 Manage members
   → GET/PATCH/POST/DELETE membership and invitation routes
+Manage customers
+  → Customer create/list/detail/update/archive routes
+Draft and issue invoices
+  → Invoice create/list/detail/update/issue routes
+Correct invalid documents
+  → Draft delete or issued cancel/void routes
+Record and correct receipts
+  → Invoice payment POST and tenant Payment GET/reverse routes
 Refresh session
   → POST /api/v1/auth/refresh
 Log out
   → POST /api/v1/auth/logout or /api/v1/auth/logout-all
 ```
 
-The current product flow stops after organization and membership management.
+The current product flow includes organization, membership, customer, invoice,
+payment recording and full reversal workflows.
 
 ## 6. Future Product API Map
 
 Every route in this section is **PLANNED — NOT IMPLEMENTED**. These are
 finalized contract routes, subject to implementation review.
-
-### Customers — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| POST | `/api/v1/organizations/:organizationId/customers` | Create customer | Customers |
-| GET | `/api/v1/organizations/:organizationId/customers` | List/search customers | Customers |
-| GET | `/api/v1/organizations/:organizationId/customers/:customerId` | Get customer | Customer Details |
-| PATCH | `/api/v1/organizations/:organizationId/customers/:customerId` | Update customer | Customer Details |
-| POST | `/api/v1/organizations/:organizationId/customers/:customerId/archive` | Archive customer | Customer Details |
-
-### Invoices — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| POST | `/api/v1/organizations/:organizationId/invoices` | Create draft invoice | Invoices |
-| GET | `/api/v1/organizations/:organizationId/invoices` | List/search invoices | Invoices |
-| GET | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Get invoice | Invoice Details |
-| PATCH | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Update draft invoice | Invoice Details |
-| DELETE | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Delete draft invoice | Invoice Details |
-| POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/issue` | Issue and number invoice | Invoice Details |
-| POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/cancel` | Cancel issued invoice with no payment rows | Invoice Details |
-| POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/void` | Void eligible issued invoice | Invoice Details |
-
-### Payments — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/payments` | Record payment | Invoice Details |
-| GET | `/api/v1/organizations/:organizationId/payments` | List payments | Payments |
-| GET | `/api/v1/organizations/:organizationId/payments/:paymentId` | Get payment | Payments |
-| POST | `/api/v1/organizations/:organizationId/payments/:paymentId/reverse` | Reverse payment | Payments |
 
 ### Expenses — PLANNED
 
@@ -452,11 +552,11 @@ finalized contract routes, subject to implementation review.
 | Organization Selector | `GET /organizations`, `POST /organizations` | Frontend not implemented |
 | Organization Settings | `GET/PATCH /organizations/:organizationId`, close, transfer ownership | Frontend not implemented |
 | Members | Member and invitation routes | Frontend not implemented |
-| Customers | Planned customer routes | Frontend not implemented |
-| Customer Details | Planned customer item routes | Frontend not implemented |
-| Invoices | Planned invoice collection routes | Frontend not implemented |
-| Invoice Details | Planned invoice item, lifecycle, and payment routes | Frontend not implemented |
-| Payments | Planned payment routes | Frontend not implemented |
+| Customers | Implemented customer collection POST/GET | Frontend not implemented |
+| Customer Details | Implemented customer GET/PATCH/archive | Frontend not implemented |
+| Invoices | Implemented invoice collection routes | Frontend not implemented |
+| Invoice Details | Implemented invoice item/lifecycle and payment recording | Frontend not implemented |
+| Payments | Implemented payment list/detail/reversal | Frontend not implemented |
 | Expenses | Planned expense/category routes | Frontend not implemented |
 | Cash Flow | Planned cash-flow route | Frontend not implemented |
 | Profit & Loss | Planned profit-loss route | Frontend not implemented |
@@ -473,9 +573,9 @@ finalized contract routes, subject to implementation review.
 | Auth | `User`, `RefreshSession`, `RefreshToken`, `AuditLog` |
 | Organizations | `Organization`, `Membership`, `InvoiceSequence`, `ExpenseCategory`, `AuditLog` |
 | Memberships / Invitations | `Membership`, `OrganizationInvitation`, `Organization`, `User`, `AuditLog` |
-| Future Customers | `Customer`, `AuditLog` |
-| Future Invoices | `Invoice`, `InvoiceItem`, `InvoiceSequence`, `Customer`, `AuditLog`, `PendingEvent` |
-| Future Payments | `Payment`, `PaymentReversal`, `Invoice`, `IdempotencyRecord`, `AuditLog`, `PendingEvent` |
+| Customers | `Customer`, `Organization`, `Membership`, `AuditLog` |
+| Invoices | `Invoice`, `InvoiceItem`, `InvoiceSequence`, `Customer`, `AuditLog`, `PendingEvent` |
+| Payments | `Payment`, `PaymentReversal`, `Invoice`, `IdempotencyRecord`, `AuditLog`, `PendingEvent` |
 | Future Expenses | `Expense`, `ExpenseCategory`, `AuditLog` |
 | Future Notifications | `Notification`, `ReminderDelivery`, `Invoice` |
 | Future Reports | `ReportExport`, `PendingEvent`, `AuditLog` |
@@ -549,7 +649,10 @@ worker architecture. No production deployment has occurred.
 
 - Organization item, settings, and closure routes.
 - Member, invitation, and ownership-transfer routes.
-- All planned customer, invoice, payment, expense, analytics, notification,
+- Customer collection/detail/update/archive routes.
+- Invoice collection/detail/update/delete/issue/cancel/void routes.
+- Payment record/list/detail/reversal routes.
+- All planned expense, analytics, notification,
   report, and audit routes.
 
 Tenant protection means access authentication, an ACTIVE membership in the
@@ -573,14 +676,28 @@ permission for an active member is `403`.
 | `POST /organizations/:organizationId/members/:membershipId/reactivate` | `membership.suspend` |
 | `DELETE /organizations/:organizationId/members/:membershipId` | `membership.remove` |
 | `POST /organizations/:organizationId/transfer-ownership` | `organization.transfer_ownership` |
+| `POST /organizations/:organizationId/customers` | `customer.create` |
+| `GET /organizations/:organizationId/customers` | `customer.read` |
+| `GET /organizations/:organizationId/customers/:customerId` | `customer.read` |
+| `PATCH /organizations/:organizationId/customers/:customerId` | `customer.update` |
+| `POST /organizations/:organizationId/customers/:customerId/archive` | `customer.archive` |
+| `POST /organizations/:organizationId/invoices` | `invoice.create` |
+| `GET /organizations/:organizationId/invoices` | `invoice.read` |
+| `GET /organizations/:organizationId/invoices/:invoiceId` | `invoice.read` |
+| `PATCH /organizations/:organizationId/invoices/:invoiceId` | `invoice.update_draft` |
+| `DELETE /organizations/:organizationId/invoices/:invoiceId` | `invoice.delete_draft` |
+| `POST /organizations/:organizationId/invoices/:invoiceId/issue` | `invoice.issue` |
+| `POST /organizations/:organizationId/invoices/:invoiceId/cancel` | `invoice.cancel` |
+| `POST /organizations/:organizationId/invoices/:invoiceId/void` | `invoice.void` |
+| `POST /organizations/:organizationId/invoices/:invoiceId/payments` | `payment.create` |
+| `GET /organizations/:organizationId/payments` | `payment.read` |
+| `GET /organizations/:organizationId/payments/:paymentId` | `payment.read` |
+| `POST /organizations/:organizationId/payments/:paymentId/reverse` | `payment.reverse` |
 
 ### Planned Permission Map — NOT IMPLEMENTED
 
 | Planned API area | Required Permission |
 |---|---|
-| Customer collection/item/archive | `customer.create`, `customer.read`, `customer.update`, `customer.archive` |
-| Invoice collection/item/lifecycle | `invoice.create`, `invoice.read`, `invoice.update_draft`, `invoice.delete_draft`, `invoice.issue`, `invoice.cancel`, `invoice.void` |
-| Payments | `payment.create`, `payment.read`, `payment.reverse` |
 | Expense categories and expenses | `expense.read`, `expense_category.manage`, `expense.create`, `expense.update`, `expense.void` |
 | Cash Flow, P&L, Analytics | `analytics.read` |
 | Reports and exports | `report.read`, `report.export` |
@@ -601,8 +718,10 @@ permission for an active member is `403`.
 
 - Production invitation delivery is missing; invitation tokens are only returned
   in protected development responses while email delivery is unavailable.
-- Prompt 12 reusable tenant-context/query infrastructure is pending.
-- Customer, invoice, payment, expense, financial-query, notification, report,
+- Broader conceptual Customer fields need a future reviewed schema migration.
+- Optional Invoice notes/terms/reference and recommended invoice idempotency replay are deferred.
+- Optional Payment reference/notes/reference search await schema support.
+- Expense, financial-query, notification, report,
   and audit-read APIs are not implemented.
 - There is no AuditLog read API.
 - Swagger/OpenAPI is deferred to Prompt 27.
@@ -629,10 +748,10 @@ Do not manually increase the API count without verifying controllers.
 
 ## 16. Final Dashboard
 
-- Current implemented APIs: **23**
+- Current implemented APIs: **40**
 - Estimated final APIs: **60–70**
-- Implemented modules: **4 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations
-- Financial APIs implemented: **0**
+- Implemented modules: **7 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments
+- Financial APIs implemented: **12**
 - Frontend implemented: **No**
 - Backend deployed: **No**
-- Next milestone: **Prompt 12 — Tenant Isolation Infrastructure**
+- Next milestone: **Prompt 16 — Expenses**

@@ -257,6 +257,23 @@ describe('organization endpoints (e2e)', () => {
       .get(`/api/v1/organizations/${organization.body.data.id}`)
       .set(authenticated(member.token))
       .expect(404);
+
+    await prisma.membership.update({
+      where: { id: membership.id },
+      data: { status: 'ACTIVE', suspendedAt: null },
+    });
+    await request(server)
+      .get(`/api/v1/organizations/${organization.body.data.id}`)
+      .set(authenticated(member.token))
+      .expect(200);
+    await prisma.membership.update({
+      where: { id: membership.id },
+      data: { status: 'REMOVED', removedAt: new Date() },
+    });
+    await request(server)
+      .get(`/api/v1/organizations/${organization.body.data.id}`)
+      .set(authenticated(member.token))
+      .expect(404);
   });
 
   it('updates allowlisted settings with version, audit, and currency-lock enforcement', async () => {

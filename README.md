@@ -1,6 +1,6 @@
 # SME Cash Flow & Invoice Management System
 
-Backend-first, multi-tenant cash-flow and invoice management platform. The JavaScript backend is a NestJS modular monolith. PostgreSQL/Prisma, Redis/BullMQ infrastructure, authentication, organizations, memberships, and reusable RBAC are established. The broader tenant-context/query infrastructure, business APIs, and business workers remain intentionally deferred.
+Backend-first, multi-tenant cash-flow and invoice management platform. The JavaScript backend is a NestJS modular monolith. PostgreSQL/Prisma, Redis/BullMQ infrastructure, authentication, organizations, memberships, reusable RBAC, trusted tenant infrastructure, Customers, Invoices, and Payments/reversals are established. Later financial modules and business workers remain deferred.
 
 ## Prerequisites
 
@@ -76,10 +76,12 @@ permissions declared by endpoint metadata. A non-member or inactive membership r
 `404`; an active member without permission receives `403`; missing/invalid credentials receive
 `401`. Roles and permissions are not JWT claims, so role/status changes affect the next request
 without a new access token. Owner-targeting and lifecycle validity remain service-level domain
-rules. The broader tenant-context/query framework remains deferred.
+rules. Authorization attaches the trusted `request.tenant` context; services re-resolve access
+on their Prisma client and use explicit tenant query helpers. See
+[`docs/backend-architecture.md`](docs/backend-architecture.md#18-implemented-tenant-isolation-convention-prompt-12).
 
-Base currency uses an ISO 4217 code and can change only before `currencyLockedAt` is set by future
-invoice/expense creation. Timezones must be valid IANA zones. Registration continues to create only
+Base currency uses an ISO 4217 code and can change only before `currencyLockedAt` is set by first
+invoice creation (or future expense creation). Timezones must be valid IANA zones. Registration continues to create only
 a global User; it never creates an organization implicitly.
 
 Every response includes `X-Request-Id`. A valid incoming UUID/ULID-style request ID is propagated; otherwise the server generates a UUID.
@@ -137,9 +139,122 @@ Queue names and conservative default job options are centralized under `src/infr
 
 Run `npm run test:queues` with local Redis available to exercise a uniquely prefixed infrastructure-only queue, enqueue and consume one trivial job, clean its keys, and verify connection shutdown. Future tenant jobs carry IDs and correlation metadata, validate payloads, and reload authoritative tenant-scoped state from PostgreSQL; they never carry authoritative financial snapshots or mutate financial truth independently.
 
+## Customers
+
+Prompt 13 adds five tenant-protected routes under
+`/api/v1/organizations/:organizationId/customers`: POST/GET collection,
+GET/PATCH `/:customerId`, and POST `/:customerId/archive`. Create accepts
+`displayName` and optional nullable `customerCode`/`email`; PATCH uses the
+same fields and requires `If-Match`. Server fields and unknown input are rejected.
+
+Lists default to ACTIVE customers, `displayName asc`, and 25 rows. They support
+`status`, `search`, `sortBy`, `sortOrder`, `limit` (1–100), and opaque `after`
+cursors. Detail GET includes archived customers. Archive accepts `{}`, is
+idempotent, retains the row/code, and does not expose a restore/delete route.
+Every mutation and its mandatory audit use one transaction. Current PostgreSQL
+membership and the existing trusted tenant helpers govern every operation.
+
+The wider conceptual Customer fields are not in the current Prisma schema and
+are not accepted by this API. No Customer schema migration is introduced. Expenses and
+later financial modules remain unimplemented.
+
+Customer cursor tests run with `npm run test`; PostgreSQL isolation, concurrency,
+and audit rollback tests with `npm run test:integration`; HTTP validation and
+RBAC/customer lifecycle tests with `npm run test:e2e`.
+
+## Invoices
+
+Prompt 14 adds eight tenant-protected routes under
+`/api/v1/organizations/:organizationId/invoices`: POST/GET collection,
+GET/PATCH/DELETE `/:invoiceId`, and POST `/:invoiceId/issue`, `cancel`, `void`.
+Prompt 14 brought the count to 36; Prompt 15 brings it to **40 implemented HTTP APIs**.
+
+Create requires `customerId`, `issueDate`, `dueDate`, `discount:{type,value}`,
+`taxRate`, and 1–1,000 `items:[{description,quantity,unitPrice,sortOrder}]`.
+PATCH accepts a nonempty subset; supplied items replace the whole list atomically.
+Dates are real YYYY-MM-DD dates with due >= issue. Decimal inputs are strings;
+unknown/protected/nested fields are rejected. Optional notes, terms, purchase-order
+reference, and wider Customer fields are deferred because they are absent from the
+current schema. First draft creation permanently locks organization currency.
+
+Server calculations use a private high-precision Decimal constructor and half-away-from-zero
+rounding at the currency registry scale: round each line, sum, discount, then tax.
+Amounts remain Prisma Decimal in PostgreSQL and strings at the API boundary.
+The first financial mutation, draft edits, issue, delete, cancel and void each
+commit their required audit within the application transaction.
+
+Only DRAFT is editable/deletable. PATCH, DELETE and issue require `If-Match`.
+Issue locks the tenant invoice and PostgreSQL sequence, recomputes, requires a
+positive total and ACTIVE same-tenant Customer, freezes name/email and numbering
+prefix, assigns prefix plus zero-padded counter, increments version, and commits
+audit plus an ID-only versioned PendingEvent. No business queue/worker is started.
+Cancel requires zero payment rows ever; void requires zero RECORDED payments.
+Both require a reason and retain document/number/history. Payment state and overdue
+are derived; overdue uses the organization's timezone, and due today is not overdue.
+Recommended invoice idempotency keys/replay remain deferred; retries use documented
+version/lifecycle conflicts and never allocate twice for the same invoice.
+
+Lists support the documented filters and sorts, default to issueDate desc,
+and use tenant/filter/sort-bound cursors with null invoice numbers last.
+
+The reviewed `20261005000000_invoice_document_evidence` migration adds only
+documented name/email snapshot, issuer and cancel/void evidence fields plus
+CHECK/FK protection. It preserves existing composite FKs, financial CHECKs and
+partial unique indexes. It intentionally refuses finalized legacy rows without
+historical evidence rather than fabricating a backfill. Apply reviewed migrations
+to development with `npm run db:migrate:deploy`; for the guarded dedicated test
+database use `node --env-file=.env scripts/migrate-test-database.js`.
+Only the test database was migrated by this milestone.
+
+Invoice tests are colocated under `src/modules/invoices`,
+`test/integration/invoices.integration-spec.js`, and `test/invoices.e2e-spec.js`.
+
+## Payments and payment reversals
+
+Prompt 15 implements four tenant-protected APIs:
+
+- POST `/api/v1/organizations/:organizationId/invoices/:invoiceId/payments`
+- GET `/api/v1/organizations/:organizationId/payments`
+- GET `/api/v1/organizations/:organizationId/payments/:paymentId`
+- POST `/api/v1/organizations/:organizationId/payments/:paymentId/reverse`
+
+Record accepts `{amount,paymentDate,method}`; reverse accepts
+`{reason,reversalDate}`. Both require a 16–128 character non-whitespace
+printable ASCII Idempotency-Key. Amounts are positive decimal strings respecting
+currency minor units; dates are real YYYY-MM-DD business dates. Optional
+reference/notes/reference search are deferred because the schema lacks them.
+Unknown input, currency, actors, totals and statuses cannot be assigned by clients.
+
+OWNER, ADMIN and ACCOUNTANT have canonical payment permissions; MEMBER and VIEWER
+do not. Every request rechecks current PostgreSQL membership. All resource access
+is scoped to trusted Organization context; foreign/missing resources return 404.
+
+Payments accept only ISSUED invoices. Application services own one transaction
+for the idempotency claim, Invoice lock, RECORDED payment sum, mutation, paid/balance
+cache and version update, audit, PendingEvent and claim completion. Invoice remains
+ISSUED; UNPAID/PARTIALLY_PAID/PAID is derived. Reverse locks Invoice then Payment,
+retains the original row and appends one immutable full-amount PaymentReversal.
+There is no edit/delete/refund API. Cancel/void share the Invoice lock.
+Overpayment is 422 PAYMENT_EXCEEDS_BALANCE with remaining balance; concurrent
+losers observe the committed balance. Cache drift fails closed with 409
+INVOICE_SETTLEMENT_INCONSISTENT; no reconciliation engine is added.
+
+Keys are scoped to organization/User/operation, with normalized financial intent
+hashing. Same intent replays original status/body plus Idempotency-Replayed: true,
+even after later settlement, reversal or void; different intent is 409
+IDEMPOTENCY_CONFLICT. Claims store resource references/status. Immutable audit
+financial receipts reconstruct the original response without an idempotency
+response blob. Retention is at least 30 days; automatic cleanup is not implemented.
+A rollback leaves no claim or financial/audit/event mutation.
+
+PAYMENT_RECORDED/PAYMENT_REVERSED audit and ID-only versioned PendingEvents commit
+atomically. No business queue or schema migration is introduced.
+Tests: colocated unit tests, `test/integration/payments.integration-spec.js`
+and `test/payments.e2e-spec.js`; run the existing unit/integration/E2E commands.
+
 ## Architecture
 
 The authoritative planning documents are in [`docs/`](docs/). Repository-specific implementation rules are summarized in [`AGENTS.md`](AGENTS.md).
 
-Current exclusions are intentional: the broader tenant-context/query infrastructure, business
-workers, Swagger, and business feature APIs have not started.
+Current exclusions are intentional: Expenses, reporting, business workers,
+Swagger, and the frontend have not started.

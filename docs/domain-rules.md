@@ -1,5 +1,35 @@
 # Domain Rules
 
+## Prompt 15 implemented Payment scope
+
+Payment record/read/reverse use the existing Prisma fields; optional
+reference/notes/reference search await schema support. Amount is positive,
+currency-scale Decimal, never rounded from excessive precision. Payment and
+reversal dates must be real YYYY-MM-DD; no additional date-order/future policy
+is introduced. Reversal reason is required, trimmed, nonblank and at most 500.
+
+Only ISSUED invoices accept recording or fresh reversals. The Invoice row is
+locked before balance/lifecycle decisions; reversal locks Invoice then Payment.
+Record/reverse/cancel/void use this same serialization boundary. Invoice remains
+ISSUED and UNPAID/PARTIALLY_PAID/PAID is derived. Sums include RECORDED rows only.
+Paid/balance cache mismatch fails closed with INVOICE_SETTLEMENT_INCONSISTENT
+(409), without an automatic reconciliation or repair operation. Overpayment is
+PAYMENT_EXCEEDS_BALANCE (422) with currency/remainingBalance.
+
+Full reversal preserves original amount/method/date/actor and appends exactly
+one immutable PaymentReversal for the complete Decimal amount. Payment status
+and reversal timestamp change, and Invoice caches/version update atomically.
+There is no Payment edit/delete, allocation, external refund or gateway action.
+
+Record/reverse require keys scoped to organization/User/stable operation, with
+canonical resource/currency/amount/date/method or reason hashing. Identical retry
+returns original status/body and no new audit/event; changed intent conflicts.
+Completed receipts replay even after later payments, reversal or void, but only
+after current tenant authorization. Idempotency references/status and immutable
+audit financial receipts reconstruct original responses. Claims expire no sooner
+than 30 days; no cleanup exists, and retained expired keys still replay.
+Rollback removes all claim/financial/audit/event writes.
+
 ## 1. Purpose and rule conventions
 
 This document is the authoritative, testable business-rule specification. `docs/database-design.md` is authoritative for storage. If a future implementation cannot enforce a rule as written, implementation must stop for architecture review rather than weaken it silently.
@@ -88,7 +118,7 @@ Authentication, active membership, permission, resource tenant, and contextual p
 
 1. Customer belongs to exactly one Organization. Tenant key comes from trusted context.
 2. `displayName` is required. Duplicate names, emails, and tax identifiers are allowed; optional `customerCode` is tenant-unique.
-3. Customer type is BUSINESS or INDIVIDUAL. Flat optional billing address is sufficient for MVP.
+3. Customer type (BUSINESS or INDIVIDUAL), flat billing address, and the other wider conceptual fields require a future schema migration. Prompt 13 uses the existing Prisma fields only: displayName, optional customerCode/email, and server-owned lifecycle/identity metadata.
 4. New invoices require an ACTIVE Customer from the same tenant.
 5. ARCHIVED Customer cannot be selected for new invoices but remains readable through existing invoices.
 6. Issued invoice customer snapshot does not change when Customer is edited/archived.
@@ -125,6 +155,16 @@ stateDiagram-v2
 | CANCELLED/VOID | any | No transition in MVP | Reopen/edit/delete |
 
 Paid and partially paid are not lifecycle transitions. ISSUED remains persisted after settlement. CANCELLED/VOID invoices retain the arithmetic settlement residual in `balanceDue` for reconciliation, but it is not a collectible balance: receivable/overdue queries include only ISSUED invoices and their payment state is NOT_APPLICABLE.
+
+### Prompt 14 implemented document scope
+
+Name/email snapshots, issuer, and cancel/void evidence are persisted by the focused
+evidence migration. Wider Customer address/tax snapshots and optional invoice
+notes/terms/purchase-order reference are deferred until their schema exists;
+the current API rejects them. Recommended invoice key replay remains deferred:
+issue requires If-Match and uses locked lifecycle/version checks, preventing
+repeated allocation for the same invoice. Payment idempotency remains mandatory
+for its future owning module.
 
 ### Mutability
 

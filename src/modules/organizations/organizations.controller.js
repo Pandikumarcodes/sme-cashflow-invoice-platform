@@ -46,15 +46,15 @@ export class OrganizationsController {
   }
 
   @Get(':organizationId')
-  async get(organizationId, request) {
-    return { data: await this.organizations.get(request.auth, organizationId) };
+  async get(_organizationId, request) {
+    return { data: await this.organizations.get(request.tenant, request.tenant.organizationId) };
   }
 
   @Patch(':organizationId')
-  async update(organizationId, ifMatch, input, request, response) {
+  async update(_organizationId, ifMatch, input, request, response) {
     const organization = await this.organizations.update(
-      request.auth,
-      organizationId,
+      request.tenant,
+      request.tenant.organizationId,
       this.parseExpectedVersion(ifMatch),
       input,
       this.auditMetadata(),
@@ -65,10 +65,10 @@ export class OrganizationsController {
 
   @Post(':organizationId/close')
   @HttpCode(HttpStatus.OK)
-  async close(organizationId, input, request) {
+  async close(_organizationId, input, request) {
     const organization = await this.organizations.close(
-      request.auth,
-      organizationId,
+      request.tenant,
+      request.tenant.organizationId,
       input.reason,
       this.auditMetadata(),
     );

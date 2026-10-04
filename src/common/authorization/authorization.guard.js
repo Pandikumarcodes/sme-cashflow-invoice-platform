@@ -1,6 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { ApplicationError } from '../errors/application-error.js';
-import { ERROR_CODES } from '../errors/error-codes.js';
+import { Inject, Injectable, ParseUUIDPipe } from '@nestjs/common';
+import { resolveTenantAccess } from '../tenancy/tenant-context.js';
 import { PrismaService } from '../../database/prisma.service.js';
 import { AuthorizationService } from './authorization.service.js';
 import { REQUIRED_PERMISSIONS } from './require-permissions.decorator.js';
@@ -17,33 +16,21 @@ export class AuthorizationGuard {
     if (!permissions?.length) return true;
     const request = context.switchToHttp().getRequest();
     const organizationId = request.params?.organizationId;
-    if (!request.auth || typeof organizationId !== 'string') {
-      throw new ApplicationError(ERROR_CODES.RESOURCE_NOT_FOUND, 'Organization not found.');
-    }
+    await new ParseUUIDPipe({ version: '4' }).transform(organizationId, {
+      type: 'param',
+      data: 'organizationId',
+    });
     const prisma = await this.prismaService.getClient();
-    const membership = await prisma.membership.findFirst({
-      where: {
-        organizationId,
-        userId: request.auth.userId,
-        status: 'ACTIVE',
-        organization: { status: 'ACTIVE' },
-      },
-      select: { id: true, organizationId: true, role: true },
-    });
-    if (!membership) {
-      throw new ApplicationError(ERROR_CODES.RESOURCE_NOT_FOUND, 'Organization not found.');
-    }
-    if (!this.authorization.canAll(membership.role, permissions)) {
-      throw new ApplicationError(ERROR_CODES.FORBIDDEN, 'Permission is not granted.');
-    }
-    request.authorization = Object.freeze({
-      userId: request.auth.userId,
-      sessionId: request.auth.sessionId,
-      organizationId: membership.organizationId,
-      membershipId: membership.id,
-      role: membership.role,
-      permissions: Object.freeze([...this.authorization.permissionsFor(membership.role)]),
-    });
+    const { tenant } = await resolveTenantAccess(
+      prisma,
+      request.auth,
+      organizationId,
+      this.authorization,
+      permissions,
+    );
+    request.tenant = tenant;
+    // Preserve the existing internal name as an alias to the single context.
+    request.authorization = tenant;
     return true;
   }
 }

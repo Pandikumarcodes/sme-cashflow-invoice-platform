@@ -16,6 +16,13 @@ import {
 } from '../domain/membership-policy.js';
 import { toInvitationResponse, toMembershipResponse } from '../membership-response.js';
 
+import { resolveTenantAccess } from '../../../common/tenancy/tenant-context.js';
+import {
+  tenantWhere,
+  tenantResourceWhere,
+  requireTenantResource,
+} from '../../../database/helpers/tenant-query.js';
+
 const DAY_MS = 86_400_000;
 
 @Injectable()
@@ -28,13 +35,17 @@ export class MembershipsService {
 
   async listMembers(auth, organizationId, filters = {}) {
     const prisma = await this.prismaService.getClient();
-    await this.requireAuthorized(prisma, auth, organizationId, PERMISSIONS.MEMBERSHIP_READ);
+    const { tenant } = await this.requireAuthorized(
+      prisma,
+      auth,
+      organizationId,
+      PERMISSIONS.MEMBERSHIP_READ,
+    );
     const memberships = await prisma.membership.findMany({
-      where: {
-        organizationId,
+      where: tenantWhere(tenant, {
         ...(filters.role ? { role: filters.role } : {}),
         ...(filters.status ? { status: filters.status } : {}),
-      },
+      }),
       include: { user: true },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
@@ -56,25 +67,29 @@ export class MembershipsService {
     const expiresAt = new Date(now.getTime() + (input.expiresInDays ?? 7) * DAY_MS);
     try {
       const invitation = await prisma.$transaction(async (tx) => {
-        const actor = await this.requireAuthorized(
+        const { membership: actor, tenant } = await this.requireAuthorized(
           tx,
           auth,
           organizationId,
           PERMISSIONS.MEMBERSHIP_INVITE,
         );
         await tx.organizationInvitation.updateMany({
-          where: {
-            organizationId,
+          where: tenantWhere(tenant, {
             normalizedEmail,
             status: 'PENDING',
             expiresAt: { lte: now },
-          },
+          }),
           data: { status: 'EXPIRED' },
         });
         const existingUser = await tx.user.findUnique({ where: { normalizedEmail } });
         if (existingUser) {
           const existingMembership = await tx.membership.findUnique({
-            where: { organizationId_userId: { organizationId, userId: existingUser.id } },
+            where: {
+              organizationId_userId: {
+                organizationId: tenant.organizationId,
+                userId: existingUser.id,
+              },
+            },
           });
           if (existingMembership && existingMembership.status !== 'REMOVED') {
             throw new ApplicationError(
@@ -85,7 +100,7 @@ export class MembershipsService {
         }
         const created = await tx.organizationInvitation.create({
           data: {
-            organizationId,
+            organizationId: tenant.organizationId,
             email: normalizedEmail,
             normalizedEmail,
             role: input.role,
@@ -118,17 +133,21 @@ export class MembershipsService {
 
   async listInvitations(auth, organizationId, filters = {}) {
     const prisma = await this.prismaService.getClient();
-    await this.requireAuthorized(prisma, auth, organizationId, PERMISSIONS.MEMBERSHIP_READ);
+    const { tenant } = await this.requireAuthorized(
+      prisma,
+      auth,
+      organizationId,
+      PERMISSIONS.MEMBERSHIP_READ,
+    );
     const now = new Date();
     await prisma.organizationInvitation.updateMany({
-      where: { organizationId, status: 'PENDING', expiresAt: { lte: now } },
+      where: tenantWhere(tenant, { status: 'PENDING', expiresAt: { lte: now } }),
       data: { status: 'EXPIRED' },
     });
     const invitations = await prisma.organizationInvitation.findMany({
-      where: {
-        organizationId,
+      where: tenantWhere(tenant, {
         ...(filters.status ? { status: filters.status } : {}),
-      },
+      }),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
     return invitations.map((invitation) => toInvitationResponse(invitation));
@@ -137,16 +156,16 @@ export class MembershipsService {
   async revokeInvitation(auth, organizationId, invitationId, metadata = {}) {
     const prisma = await this.prismaService.getClient();
     await prisma.$transaction(async (tx) => {
-      const actor = await this.requireAuthorized(
+      const { membership: actor, tenant } = await this.requireAuthorized(
         tx,
         auth,
         organizationId,
         PERMISSIONS.MEMBERSHIP_INVITE,
       );
       const invitation = await tx.organizationInvitation.findFirst({
-        where: { id: invitationId, organizationId },
+        where: tenantResourceWhere(tenant, invitationId),
       });
-      if (!invitation) throw this.notFound('Invitation');
+      requireTenantResource(invitation, 'Invitation');
       if (invitation.status !== 'PENDING') {
         throw new ApplicationError(
           ERROR_CODES.INVITATION_INVALID_OR_EXPIRED,
@@ -156,13 +175,13 @@ export class MembershipsService {
       const now = new Date();
       if (invitation.expiresAt <= now) {
         await tx.organizationInvitation.update({
-          where: { id: invitation.id },
+          where: tenantResourceWhere(tenant, invitation.id),
           data: { status: 'EXPIRED' },
         });
         return;
       }
       const revoked = await tx.organizationInvitation.update({
-        where: { id: invitation.id },
+        where: tenantResourceWhere(tenant, invitation.id),
         data: { status: 'REVOKED', revokedAt: now },
       });
       await this.audit(tx, auth, actor, {
@@ -387,17 +406,23 @@ export class MembershipsService {
     }
     const prisma = await this.prismaService.getClient();
     const result = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "organizations" WHERE "id" = ${organizationId}::uuid FOR UPDATE`;
-      const actor = await this.requireAuthorized(
+      const initialAccess = await this.requireAuthorized(
+        tx,
+        auth,
+        organizationId,
+        PERMISSIONS.ORGANIZATION_TRANSFER_OWNERSHIP,
+      );
+      await tx.$queryRaw`SELECT "id" FROM "organizations" WHERE "id" = ${initialAccess.tenant.organizationId}::uuid FOR UPDATE`;
+      const { membership: actor, tenant } = await this.requireAuthorized(
         tx,
         auth,
         organizationId,
         PERMISSIONS.ORGANIZATION_TRANSFER_OWNERSHIP,
       );
       const initialTarget = await tx.membership.findFirst({
-        where: { id: targetMembershipId, organizationId },
+        where: tenantResourceWhere(tenant, targetMembershipId),
       });
-      if (!initialTarget) throw this.notFound('Membership');
+      requireTenantResource(initialTarget, 'Membership');
       if (initialTarget.id === actor.id || initialTarget.status !== 'ACTIVE') {
         throw new ApplicationError(
           ERROR_CODES.INVALID_MEMBERSHIP_STATUS,
@@ -405,14 +430,14 @@ export class MembershipsService {
         );
       }
       const lockIds = [actor.id, initialTarget.id].sort();
-      await tx.$queryRaw`SELECT "id" FROM "memberships" WHERE "id" IN (${lockIds[0]}::uuid, ${lockIds[1]}::uuid) ORDER BY "id" FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "memberships" WHERE "organizationId" = ${tenant.organizationId}::uuid AND "id" IN (${lockIds[0]}::uuid, ${lockIds[1]}::uuid) ORDER BY "id" FOR UPDATE`;
       const [currentOwner, target] = await Promise.all([
         tx.membership.findFirst({
-          where: { id: actor.id, organizationId, status: 'ACTIVE', role: OWNER_ROLE },
+          where: { ...tenantResourceWhere(tenant, actor.id), status: 'ACTIVE', role: OWNER_ROLE },
           include: { user: true },
         }),
         tx.membership.findFirst({
-          where: { id: targetMembershipId, organizationId, status: 'ACTIVE' },
+          where: { ...tenantResourceWhere(tenant, targetMembershipId), status: 'ACTIVE' },
           include: { user: true },
         }),
       ]);
@@ -423,17 +448,17 @@ export class MembershipsService {
         );
       }
       const previousOwner = await tx.membership.update({
-        where: { id: currentOwner.id },
+        where: tenantResourceWhere(tenant, currentOwner.id),
         data: { role: 'ADMIN', version: { increment: 1 } },
         include: { user: true },
       });
       const newOwner = await tx.membership.update({
-        where: { id: target.id },
+        where: tenantResourceWhere(tenant, target.id),
         data: { role: 'OWNER', version: { increment: 1 } },
         include: { user: true },
       });
       await tx.organization.update({
-        where: { id: organizationId },
+        where: { id: tenant.organizationId },
         data: { version: { increment: 1 } },
       });
       await this.audit(tx, auth, currentOwner, {
@@ -466,12 +491,17 @@ export class MembershipsService {
   ) {
     const prisma = await this.prismaService.getClient();
     const membership = await prisma.$transaction(async (tx) => {
-      const actor = await this.requireAuthorized(tx, auth, organizationId, permission);
+      const { membership: actor, tenant } = await this.requireAuthorized(
+        tx,
+        auth,
+        organizationId,
+        permission,
+      );
       const target = await tx.membership.findFirst({
-        where: { id: membershipId, organizationId },
+        where: tenantResourceWhere(tenant, membershipId),
         include: { user: true },
       });
-      if (!target) throw this.notFound('Membership');
+      requireTenantResource(target, 'Membership');
       if (!canTargetMembership(actor.role, target.role)) {
         throw new ApplicationError(
           isOwnerRole(target.role) ? ERROR_CODES.OWNER_TRANSFER_REQUIRED : ERROR_CODES.FORBIDDEN,
@@ -483,7 +513,7 @@ export class MembershipsService {
       const now = new Date();
       const mutation = buildMutation(target, now);
       const changed = await tx.membership.updateMany({
-        where: { id: membershipId, organizationId, version: expectedVersion },
+        where: { ...tenantResourceWhere(tenant, membershipId), version: expectedVersion },
         data: mutation.data,
       });
       if (changed.count !== 1) {
@@ -493,7 +523,7 @@ export class MembershipsService {
         );
       }
       const updated = await tx.membership.findFirstOrThrow({
-        where: { id: membershipId, organizationId },
+        where: tenantResourceWhere(tenant, membershipId),
         include: { user: true },
       });
       await this.audit(tx, auth, actor, {
@@ -512,19 +542,7 @@ export class MembershipsService {
   }
 
   async requireAuthorized(prisma, auth, organizationId, permission) {
-    const actor = await prisma.membership.findFirst({
-      where: { organizationId, userId: auth.userId, status: 'ACTIVE' },
-      include: { organization: true },
-    });
-    if (!actor) throw this.notFound('Organization');
-    if (actor.organization.status !== 'ACTIVE') {
-      throw new ApplicationError(
-        ERROR_CODES.INVALID_ORGANIZATION_STATUS,
-        'Organization is not active.',
-      );
-    }
-    this.authorization.assertPermission(actor.role, permission);
-    return actor;
+    return resolveTenantAccess(prisma, auth, organizationId, this.authorization, [permission]);
   }
 
   invalidInvitation() {
@@ -539,10 +557,6 @@ export class MembershipsService {
       ERROR_CODES.INVALID_MEMBERSHIP_STATUS,
       `Membership must be ${expected}.`,
     );
-  }
-
-  notFound(entity) {
-    return new ApplicationError(ERROR_CODES.RESOURCE_NOT_FOUND, `${entity} not found.`);
   }
 
   audit(tx, auth, actorMembership, event) {

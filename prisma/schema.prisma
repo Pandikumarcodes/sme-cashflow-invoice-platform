@@ -335,6 +335,13 @@ model Invoice {
   balanceDue         Decimal            @default(0) @db.Decimal(19, 4)
   createdByUserId    String             @db.Uuid
   issuedAt           DateTime?          @db.Timestamptz(3)
+  issuedByUserId     String?            @db.Uuid
+  billToName         String?            @db.VarChar(200)
+  billToEmail        String?            @db.VarChar(320)
+  cancelledAt        DateTime?          @db.Timestamptz(3)
+  cancelReason       String?            @db.VarChar(500)
+  voidedAt           DateTime?          @db.Timestamptz(3)
+  voidReason         String?            @db.VarChar(500)
   version            Int                @default(1)
   createdAt          DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime           @updatedAt @db.Timestamptz(3)

@@ -1,5 +1,29 @@
 # Database Design
 
+## Prompt 15 implemented persistence
+
+No schema or migration change is needed for Payments. Existing Payment,
+PaymentReversal, Invoice, IdempotencyRecord, AuditLog and PendingEvent rows are
+used with their tenant composite foreign keys, unique indexes and financial
+CHECK constraints intact. Payment reference/notes are not present in the current
+Prisma schema and are deferred, including reference search.
+
+Application transactions serialize on the tenant Invoice row; reversal then
+locks Payment. RECORDED payment sums are PostgreSQL Decimal values and maintain
+Invoice amountPaid/balanceDue/version. Full reversal preserves Payment facts and
+creates exactly one PaymentReversal with the original Decimal amount. A cached
+sum mismatch rejects the mutation rather than silently repairing data.
+
+The IdempotencyRecord unique organization/User/operation/key index arbitrates
+concurrent claims. Under READ COMMITTED, an identical loser waits and reads the
+committed winner's result. Financial mutation, audit receipt, PendingEvent and
+claim completion share the same transaction client. Immutable audit afterData
+holds a minimal financial receipt (Payment identity/status/timestamps and Invoice
+financial summary); immutable Payment/Reversal rows supply the remaining fields
+for original-response replay. No response blob or customer/document PII is stored
+on the idempotency claim. expiresAt is set at least 30 days ahead; retained expired
+keys still replay, and no cleanup process is introduced.
+
 ## 1. Status, authority, and refinements
 
 This is the implementation-ready logical PostgreSQL blueprint. It refines the other planning documents but intentionally contains no Prisma schema or migration SQL. PostgreSQL is authoritative; Redis/BullMQ never owns financial truth.
@@ -173,6 +197,16 @@ Membership stores only role enum. Permissions remain code-defined. No generic Ro
 
 ### 4.5 Customer
 
+**Implemented schema boundary (Prompt 13):** the existing Prisma model and initial
+migration contain only `id`, `organizationId`, `customerCode`, `displayName`,
+`email`, `status`, `createdByUserId`, `version`, `createdAt`, and `updatedAt`.
+Prompt 13 preserves this schema and exposes only its writable fields. The wider
+conceptual fields in the table below remain planned; adding them requires a
+separate reviewed migration. The current indexes are the two tenant composite
+unique indexes and `(organizationId,status,displayName,id)`; the created-at
+index below is planned. PostgreSQL's nullable composite code uniqueness permits
+multiple null codes and reserves a non-null code even after archival.
+
 | Field | Purpose | Type | Required/default | Rules |
 |---|---|---|---|---|
 | `id`,`organizationId` | Identity/tenant | UUID | Required | Unique `(organizationId,id)`; org `RESTRICT` |
@@ -205,6 +239,16 @@ Indexes: unique `(organizationId,customerCode)` where non-null, `(organizationId
 Drafts have no number. Issue locks Invoice then InvoiceSequence, uses current prefix/padding, increments, and assigns all issue fields atomically. Gaps are accepted; the sequence never resets in MVP.
 
 ### 4.7 Invoice
+
+Prompt 14 adds the focused `20261005000000_invoice_document_evidence` migration:
+`billToName`, `billToEmail`, `issuedByUserId`, `cancelledAt`, `cancelReason`,
+`voidedAt`, and `voidReason`, with issuer FK and lifecycle-evidence CHECK.
+No historical snapshot is fabricated; finalized legacy rows require reviewed
+historical evidence before applying this migration. The remaining conceptual
+purchase-order/text/address/tax fields below are deferred, absent from Prisma,
+and rejected by the current API. Existing tenant composite FKs, financial CHECKs,
+partial numbering indexes and Decimal scales are preserved.
+
 
 | Field | Purpose | Type | Required/default | Rules |
 |---|---|---|---|---|

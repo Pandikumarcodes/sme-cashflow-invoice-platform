@@ -164,6 +164,8 @@ describe('initial PostgreSQL schema', () => {
     const customerB = await createCustomer(organizationB.id, user.id);
     const issued = {
       status: 'ISSUED',
+      issuedByUserId: user.id,
+      billToName: 'Snapshot customer',
       invoiceNumber: 'INV-000001',
       sequenceValue: BigInt(1),
       numberPrefix: 'INV-',

@@ -41,16 +41,22 @@ export class MembershipsController {
   }
 
   @Get('members')
-  async listMembers(organizationId, query, request) {
-    return { data: await this.memberships.listMembers(request.auth, organizationId, query) };
+  async listMembers(_organizationId, query, request) {
+    return {
+      data: await this.memberships.listMembers(
+        request.tenant,
+        request.tenant.organizationId,
+        query,
+      ),
+    };
   }
 
   @Post('invitations')
-  async invite(organizationId, input, request) {
+  async invite(_organizationId, input, request) {
     return {
       data: await this.memberships.invite(
-        request.auth,
-        organizationId,
+        request.tenant,
+        request.tenant.organizationId,
         input,
         this.auditMetadata(),
       ),
@@ -58,26 +64,32 @@ export class MembershipsController {
   }
 
   @Get('invitations')
-  async listInvitations(organizationId, query, request) {
-    return { data: await this.memberships.listInvitations(request.auth, organizationId, query) };
+  async listInvitations(_organizationId, query, request) {
+    return {
+      data: await this.memberships.listInvitations(
+        request.tenant,
+        request.tenant.organizationId,
+        query,
+      ),
+    };
   }
 
   @Delete('invitations/:invitationId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async revokeInvitation(organizationId, invitationId, request) {
+  async revokeInvitation(_organizationId, invitationId, request) {
     await this.memberships.revokeInvitation(
-      request.auth,
-      organizationId,
+      request.tenant,
+      request.tenant.organizationId,
       invitationId,
       this.auditMetadata(),
     );
   }
 
   @Patch('members/:membershipId')
-  async changeRole(organizationId, membershipId, ifMatch, input, request, response) {
+  async changeRole(_organizationId, membershipId, ifMatch, input, request, response) {
     const membership = await this.memberships.changeRole(
-      request.auth,
-      organizationId,
+      request.tenant,
+      request.tenant.organizationId,
       membershipId,
       this.parseExpectedVersion(ifMatch),
       input.role,
@@ -88,10 +100,10 @@ export class MembershipsController {
 
   @Post('members/:membershipId/suspend')
   @HttpCode(HttpStatus.OK)
-  async suspend(organizationId, membershipId, ifMatch, _input, request, response) {
+  async suspend(_organizationId, membershipId, ifMatch, _input, request, response) {
     const membership = await this.memberships.suspend(
-      request.auth,
-      organizationId,
+      request.tenant,
+      request.tenant.organizationId,
       membershipId,
       this.parseExpectedVersion(ifMatch),
       this.auditMetadata(),
@@ -101,10 +113,10 @@ export class MembershipsController {
 
   @Post('members/:membershipId/reactivate')
   @HttpCode(HttpStatus.OK)
-  async reactivate(organizationId, membershipId, ifMatch, _input, request, response) {
+  async reactivate(_organizationId, membershipId, ifMatch, _input, request, response) {
     const membership = await this.memberships.reactivate(
-      request.auth,
-      organizationId,
+      request.tenant,
+      request.tenant.organizationId,
       membershipId,
       this.parseExpectedVersion(ifMatch),
       this.auditMetadata(),
@@ -114,10 +126,10 @@ export class MembershipsController {
 
   @Delete('members/:membershipId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(organizationId, membershipId, ifMatch, request) {
+  async remove(_organizationId, membershipId, ifMatch, request) {
     await this.memberships.remove(
-      request.auth,
-      organizationId,
+      request.tenant,
+      request.tenant.organizationId,
       membershipId,
       this.parseExpectedVersion(ifMatch),
       this.auditMetadata(),
@@ -126,11 +138,11 @@ export class MembershipsController {
 
   @Post('transfer-ownership')
   @HttpCode(HttpStatus.OK)
-  async transferOwnership(organizationId, input, request) {
+  async transferOwnership(_organizationId, input, request) {
     return {
       data: await this.memberships.transferOwnership(
-        request.auth,
-        organizationId,
+        request.tenant,
+        request.tenant.organizationId,
         input.targetMembershipId,
         this.auditMetadata(),
       ),

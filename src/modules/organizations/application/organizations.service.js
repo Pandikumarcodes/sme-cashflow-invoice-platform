@@ -16,6 +16,8 @@ import {
 } from '../domain/organization-settings.js';
 import { toOrganizationResponse, toOrganizationSummary } from '../organization-response.js';
 
+import { resolveTenantAccess } from '../../../common/tenancy/tenant-context.js';
+
 const MUTABLE_FIELDS = [
   'legalName',
   'displayName',
@@ -99,9 +101,13 @@ export class OrganizationsService {
 
   async get(auth, organizationId) {
     const prisma = await this.prismaService.getClient();
-    const membership = await this.findMembership(prisma, auth.userId, organizationId);
-    this.assertOrganizationAvailable(membership);
-    this.authorization.assertPermission(membership.role, PERMISSIONS.ORGANIZATION_READ);
+    const { membership } = await resolveTenantAccess(
+      prisma,
+      auth,
+      organizationId,
+      this.authorization,
+      [PERMISSIONS.ORGANIZATION_READ],
+    );
     return toOrganizationResponse(membership.organization, membership);
   }
 
@@ -114,9 +120,14 @@ export class OrganizationsService {
     }
     try {
       const result = await prisma.$transaction(async (tx) => {
-        const membership = await this.findMembership(tx, auth.userId, organizationId);
-        this.assertOrganizationAvailable(membership);
-        this.authorization.assertPermission(membership.role, PERMISSIONS.ORGANIZATION_UPDATE);
+        await tx.$queryRaw`SELECT "id" FROM "organizations" WHERE "id" = ${organizationId}::uuid FOR UPDATE`;
+        const { membership, tenant } = await resolveTenantAccess(
+          tx,
+          auth,
+          organizationId,
+          this.authorization,
+          [PERMISSIONS.ORGANIZATION_UPDATE],
+        );
         if (!assertBaseCurrencyChangeAllowed(membership.organization, normalized.baseCurrency)) {
           throw new ApplicationError(
             ERROR_CODES.CURRENCY_LOCKED,
@@ -124,7 +135,7 @@ export class OrganizationsService {
           );
         }
         const changed = await tx.organization.updateMany({
-          where: { id: organizationId, status: 'ACTIVE', version: expectedVersion },
+          where: { id: tenant.organizationId, status: 'ACTIVE', version: expectedVersion },
           data: { ...normalized, version: { increment: 1 } },
         });
         if (changed.count !== 1) {
@@ -134,7 +145,7 @@ export class OrganizationsService {
           );
         }
         const organization = await tx.organization.findUniqueOrThrow({
-          where: { id: organizationId },
+          where: { id: tenant.organizationId },
         });
         const fields = Object.keys(normalized);
         await this.audit(tx, {
@@ -166,11 +177,19 @@ export class OrganizationsService {
   async close(auth, organizationId, reason, metadata = {}) {
     const prisma = await this.prismaService.getClient();
     const result = await prisma.$transaction(async (tx) => {
-      const membership = await this.findMembership(tx, auth.userId, organizationId);
-      this.assertOrganizationAvailable(membership);
-      this.authorization.assertPermission(membership.role, PERMISSIONS.ORGANIZATION_CLOSE);
+      const { membership, tenant } = await resolveTenantAccess(
+        tx,
+        auth,
+        organizationId,
+        this.authorization,
+        [PERMISSIONS.ORGANIZATION_CLOSE],
+      );
       const changed = await tx.organization.updateMany({
-        where: { id: organizationId, status: 'ACTIVE', version: membership.organization.version },
+        where: {
+          id: tenant.organizationId,
+          status: 'ACTIVE',
+          version: membership.organization.version,
+        },
         data: { status: 'CLOSED', version: { increment: 1 } },
       });
       if (changed.count !== 1) {
@@ -180,7 +199,7 @@ export class OrganizationsService {
         );
       }
       const organization = await tx.organization.findUniqueOrThrow({
-        where: { id: organizationId },
+        where: { id: tenant.organizationId },
       });
       await this.audit(tx, {
         organizationId,
@@ -198,25 +217,6 @@ export class OrganizationsService {
       return { organization, membership };
     });
     return toOrganizationResponse(result.organization, result.membership);
-  }
-
-  findMembership(prisma, userId, organizationId) {
-    return prisma.membership.findFirst({
-      where: { userId, organizationId, status: 'ACTIVE' },
-      include: { organization: true },
-    });
-  }
-
-  assertOrganizationAvailable(membership) {
-    if (!membership) {
-      throw new ApplicationError(ERROR_CODES.RESOURCE_NOT_FOUND, 'Organization not found.');
-    }
-    if (membership.organization.status !== 'ACTIVE') {
-      throw new ApplicationError(
-        ERROR_CODES.INVALID_ORGANIZATION_STATUS,
-        'Organization is not active.',
-      );
-    }
   }
 
   normalizeCreate(input) {

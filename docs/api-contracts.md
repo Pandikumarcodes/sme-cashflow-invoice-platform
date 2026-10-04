@@ -100,9 +100,9 @@ Use `sortBy=<allowlistedField>&sortOrder=asc|desc`. Unknown fields/directions re
 
 Query values are single unless documented as comma-separated enum sets. Unsupported parameters are rejected.
 
-- Customers: `status`, `customerType`, `search`. Search matches display/legal/contact name and email using bounded case-insensitive PostgreSQL patterns; minimum 2, maximum 100 characters.
+- Customers (Prompt 13): `status` (`ACTIVE` default, or `ARCHIVED`) and `search`. Search matches the implemented display name and email using bounded, literal case-insensitive PostgreSQL patterns; minimum 2, maximum 100 characters. `customerType` and other fields absent from the current Prisma model are not accepted.
 - Invoices: `status`, `paymentState`, `overdue`, `customerId`, `issueDateFrom/To`, `dueDateFrom/To`, `search`. Search matches invoice number and customer snapshot/display name within tenant.
-- Payments: `invoiceId`, `status`, `method`, `paymentDateFrom/To`, `search` for bounded reference.
+- Payments (Prompt 15): `invoiceId`, `status`, `method`, `paymentDateFrom/To`; reference search is deferred because reference is absent from the current schema.
 - Expenses: `categoryId`, `status`, `expenseDateFrom/To`, `vendor`.
 - Audit: `actorUserId`, `action`, `entityType`, `entityId`, `occurredFrom/To`.
 
@@ -346,10 +346,37 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 
 - **Route:** `POST /organizations/:organizationId/customers`.
 - **Permission:** `customer.create`.
-- **Request:** allowlisted Customer writable fields: customerType, optional customerCode/legal/contact/email/phone/address/tax/payment terms/notes; required displayName.
+- **Request:** Prompt 13 follows the existing Prisma model: required `displayName` (visible text, maximum 200), optional nullable `customerCode` (visible text, maximum 50) and `email` (valid email, maximum 320). Values retain their supplied casing and whitespace; no identity-email normalization is applied. Broader conceptual party/contact/address/tax/terms/notes fields require a future reviewed schema migration and are rejected now. Tenant, creator, status, version, IDs, and timestamps are server-owned.
 - **Rules/Transaction:** tenant from context; duplicate name/email allowed; code tenant-unique; customer + audit transaction.
-- **Response:** 201 Customer.
-- **Errors:** 409 duplicate code; 422 semantic validation; audit `CUSTOMER_CREATED`.
+- **Response:** 201 Customer with `ETag`, `organizationId`, writable fields, `status`, `createdByUserId`, `version`, and timestamps.
+- **Errors:** 400 invalid transport fields; 409 `CUSTOMER_CODE_UNAVAILABLE`; audit `CUSTOMER_CREATED`.
+
+### Prompt 14 implemented Invoice scope
+
+The eight documented Invoice routes are implemented. Writable input follows the
+existing Prisma fields: customerId, issueDate, dueDate, discount, taxRate and items.
+Optional purchaseOrderReference/notes/terms remain conceptual and are rejected
+until a future reviewed migration. Items have a transport bound of 1–1,000.
+The focused evidence migration supplies immutable billToName/billToEmail,
+issuedByUserId and cancel/void timestamps/reasons; broader Customer snapshots
+(address/tax identifier) remain deferred with the broader Customer schema.
+
+Discount FIXED follows currency minor units and NUMERIC(19,6), hence at most
+13 integer digits; unit prices retain NUMERIC(19,4) and may use four places.
+Decimal syntax errors are 400; semantic money/quantity/discount/tax bounds are 422.
+Invalid calendar/date ordering and range input return 400 INVALID_REQUEST.
+Required version headers are validated like existing Customer If-Match headers.
+Issue accepts an empty/absent body; deletion rejects nonempty bodies. Recommended
+invoice idempotency-key replay is deferred, not a required MVP credential: stale
+versions/lifecycle conflicts protect retries. Issue persists a versioned ID-only
+PendingEvent but dispatch/delivery remains later work.
+
+Lists return full invoice representations, include all statuses by default, use
+issueDate desc and the documented sorts/filters. Invoice-number nulls sort last
+in both directions. Search uses billToName after issue and current Customer name
+for drafts. Overdue cursor signatures include the resolved tenant-local date;
+reusing one after that date changes is invalid. DRAFT paymentState is
+NOT_APPLICABLE. List responses are current reads, not a historical snapshot.
 
 ### 9.7 Create draft invoice
 
@@ -379,11 +406,36 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 - **Response:** 200 issued Invoice.
 - **Errors:** 404, 409 lifecycle/stale/rare number conflict/idempotency, 422 invalid draft.
 
+### Prompt 15 implemented Payment scope
+
+Exactly four routes are implemented: record, tenant collection GET, item GET and
+reverse. Record accepts only `{amount,paymentDate,method}`; reference/notes are
+conceptual fields absent from Prisma and rejected, including reference search.
+Unknown fields and client totals/currency/status/actors/timestamps are rejected.
+There is no invoice-specific GET collection, Payment PATCH/DELETE or partial
+reversal API. Every response includes immutable Payment facts, server actors and
+timestamps, nullable full reversal detail, and an Invoice financial summary.
+Detail/list summaries reflect current settlement; command retries return the
+original command receipt.
+
+Amounts are positive decimal strings, at most 15 integer/4 fractional digits,
+obeying effective currency minor units without rounding a payment. Dates are real
+YYYY-MM-DD dates; no additional before/future date restriction is introduced.
+Reversal reason is nonblank, trimmed, maximum 500 characters. Neither command
+requires If-Match; both increment Invoice version. Cache drift is rejected as
+409 INVOICE_SETTLEMENT_INCONSISTENT before financial mutation.
+
+Lists support invoiceId/status/method/paymentDateFrom/To, sortBy
+paymentDate/recordedAt/amount, sortOrder, limit 1–100 (default 25), and after;
+default paymentDate desc. Inclusive list date spans are bounded to 1,825 days.
+Cursors bind tenant, filters and sort and use id ties. OWNER/ADMIN/ACCOUNTANT
+have all three Payment permissions; MEMBER/VIEWER have none, including read.
+
 ### 9.10 Record payment
 
 - **Route:** `POST /organizations/:organizationId/invoices/:invoiceId/payments`.
 - **Permission:** `payment.create`.
-- **Headers/request:** `Idempotency-Key` required; `{amount,paymentDate,method,reference?,notes?}`. No currency/balance/status.
+- **Headers/request:** `Idempotency-Key` required; `{amount,paymentDate,method}` (reference/notes deferred). No currency/balance/status.
 - **Rules/Transaction:** scoped ISSUED invoice; lock invoice; recompute active sum; validate currency-scale amount <= remaining; insert Payment/update caches/audit/event/idempotency atomically.
 - **Response:** 201 Payment plus `{invoice:{id,paymentState,amountPaid,balanceDue,version}}`. A successful replay returns the original HTTP status/body semantics and header `Idempotency-Replayed: true`.
 - **Errors:** 400 missing/invalid key; 404 invoice; 409 state/idempotency mismatch; 422 invalid/overpayment. Concurrent losing request receives 422 PAYMENT_EXCEEDS_BALANCE, never a lock error.
@@ -395,7 +447,7 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 - **Request:** `{reason,reversalDate}`; no amount because full-only. `Idempotency-Key` required for public API.
 - **Rules/Transaction:** lock Invoice then RECORDED Payment; create unique full PaymentReversal; mark reversed; recompute cache; audit/event/idempotency.
 - **Response:** 200 Payment with reversal and updated invoice settlement summary.
-- **Errors:** 404, 409 already reversed/idempotency, 422 date/reason. Audit `PAYMENT_REVERSED`.
+- **Errors:** 400 malformed/blank reason or missing/invalid key, 404, 409 already reversed/state/idempotency/cache drift, 422 invalid calendar date. Audit `PAYMENT_REVERSED`.
 
 ### 9.12 Create expense
 
@@ -453,6 +505,9 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 
 - Detail GET `customer.read`; PATCH `customer.update` with `If-Match`; archive command `customer.archive` returns 200 ARCHIVED Customer or 204 by implementation choice—**contract decision: 200 resource**.
 - Archive is idempotent; archived customer update is allowed only for safe correction with permission, but it cannot be used for new invoices.
+- Prompt 13 implements collection POST/GET, detail GET/PATCH, and archive POST only. There is no restore or delete route. PATCH accepts the same three writable fields, requires at least one field, and can clear code/email with `null`. Code uniqueness spans active and archived customers. Successful PATCH increments version and writes `CUSTOMER_UPDATED` atomically; stale versions return 409 `CONCURRENT_MODIFICATION`.
+- Archive accepts an empty object, changes ACTIVE to ARCHIVED, increments version, and writes `CUSTOMER_ARCHIVED` in the same transaction. Repeated/concurrent archive of an already archived customer returns the retained resource without another version increment or audit event. Archived details remain readable and the same metadata fields remain correctable.
+- Lists return the section 3 collection envelope and bounded cursor pagination. Cursors bind their version/sort tuple to the trusted tenant, status, search, and sort; changing those returns 400 `INVALID_CURSOR`. Cursors are untrusted pagination positions, never credentials or tenant authority. A changing dataset is not a historical snapshot.
 
 ### Invoices
 
@@ -463,7 +518,7 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 
 ### Payments
 
-- List/detail require `payment.read`; list may filter invoice/status/method/date/reference.
+- List/detail require `payment.read`; list may filter invoice/status/method/date. Reference search is deferred.
 - There is no payment PATCH/DELETE, allocation, refund, or batch-payment endpoint.
 
 ### Expense categories and expenses
@@ -489,7 +544,8 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 - First request executes and stores result reference/status in the transaction.
 - Same scope/key/hash returns the same logical result, does not repeat audit/event, and adds `Idempotency-Replayed: true`.
 - Same scope/key with different hash returns 409 `IDEMPOTENCY_CONFLICT`.
-- A failed/rolled-back mutation leaves no completed claim. Retention defaults to at least 30 days for payments.
+- A failed/rolled-back mutation leaves no claim. Retention defaults to at least 30 days for payments; no cleanup is implemented, and retained expired keys still replay.
+- Implemented claims store only Payment reference/status. Immutable audit financial receipts and immutable Payment/Reversal facts reconstruct the original status/body, including original Invoice settlement and timestamps after later payments, reversal or void. Replay rechecks current authorization and repeats no audit/event. Concurrent identical keys execute once; conflicting hashes return 409 after the winner commits.
 
 ## 12. Endpoint authorization matrix
 

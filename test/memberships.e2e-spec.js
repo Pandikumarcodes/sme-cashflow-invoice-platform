@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { jest } from '@jest/globals';
+import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
@@ -255,12 +256,29 @@ describe('membership and invitation endpoints (e2e)', () => {
       .set('If-Match', '"1"')
       .send({ role: 'ADMIN' })
       .expect(409);
-    await request(server)
+    const foreign = await request(server)
       .patch(`/api/v1/organizations/${organizationA.id}/members/${membershipB.id}`)
       .set(authorization(ownerA.token))
       .set('If-Match', '"1"')
       .send({ role: 'VIEWER' })
       .expect(404);
+    const missing = await request(server)
+      .patch(`/api/v1/organizations/${organizationA.id}/members/${randomUUID()}`)
+      .set(authorization(ownerA.token))
+      .set('If-Match', '"1"')
+      .send({ role: 'VIEWER' })
+      .expect(404);
+    expect(foreign.body.error.code).toBe(missing.body.error.code);
+    expect(foreign.body.error.message).toBe(missing.body.error.message);
+    await request(server)
+      .post(`/api/v1/organizations/${organizationA.id}/invitations`)
+      .set(authorization(ownerA.token))
+      .send({ email: 'override@example.com', role: 'MEMBER', organizationId: organizationB.id })
+      .expect(400);
+    await request(server)
+      .get(`/api/v1/organizations/${organizationA.id}/members?organizationId=${organizationB.id}`)
+      .set(authorization(ownerA.token))
+      .expect(400);
     const invitationA = await invite(ownerA.token, organizationA.id, 'scoped-invite@example.com');
     await request(server)
       .delete(`/api/v1/organizations/${organizationB.id}/invitations/${invitationA.body.data.id}`)
@@ -269,7 +287,13 @@ describe('membership and invitation endpoints (e2e)', () => {
     await request(server)
       .delete(`/api/v1/organizations/${organizationA.id}/invitations/${invitationA.body.data.id}`)
       .set(authorization(ownerA.token))
+      .set('X-Organization-Id', organizationB.id)
+      .query({ organizationId: organizationB.id })
       .expect(204);
+    expect(await prisma.membership.findUnique({ where: { id: membershipB.id } })).toMatchObject({
+      role: 'MEMBER',
+      version: 1,
+    });
   });
 
   it('transfers ownership atomically and ordinary role APIs cannot assign Owner', async () => {
