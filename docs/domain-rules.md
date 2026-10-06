@@ -475,3 +475,58 @@ Custom RBAC, multi-currency/FX, gateway/provider uniqueness, payment allocations
 - [ ] Tenant isolation test cases are documented
 - [ ] No Prisma schema has been generated
 - [ ] No application code has been generated
+
+## Prompt 16 implemented decisions
+
+Category normalization is trim → collapse whitespace → JavaScript lowercase,
+without Unicode normalization or accent stripping; display and normalized names
+are bounded to 100 characters. Archived categories cannot be patched. Default
+categories may archive, preserving systemKey. Archive repeats make no write/audit.
+Archive and new Expense assignments share a tenant-scoped Category row lock.
+Existing expenses retain archived references; assigning the same category again
+is an unchanged reference, while a different assignment requires ACTIVE status.
+
+Expense amounts are positive canonical Decimal strings with effective currency
+minor units validated without rounding. First creation permanently locks currency
+atomically with the expense and audit. ACTIVE expenses alone are editable; PATCH
+and void require the current version and increment it once. VOIDED is terminal;
+fresh repeat void conflicts. Malformed dates are 400 transport validation errors;
+impossible calendar dates are 422 EXPENSE_INVALID_DATE. No future-date restriction
+exists. Lists default ACTIVE, vendor matching is literal/case-insensitive, and
+nullable vendors sort last in both directions. No Expense PendingEvent consumer
+or request idempotency contract exists; both are explicitly deferred.
+
+## Prompt 17 Cash Flow reporting decisions
+
+The current-state report sums RECORDED Payments by paymentDate and ACTIVE Expenses
+by expenseDate, then subtracts outflows from inflows. REVERSED and VOIDED source
+rows contribute nothing, regardless of the correction's later date; there is no
+second subtraction from reversal records. Archived categories do not suppress
+active expense facts. Invoice issue and cached invoice settlement totals are not
+cash flow sources. Reports are derived reads, not stored historical snapshots.
+
+Each omitted bound uses the organization-local current month's corresponding
+boundary. Ranges count at most 366 inclusive calendar dates. Day/week/month
+grouping defaults to month; weeks start Monday. Natural bucket starts label only
+populated chronological periods, and partial periods include only facts inside
+the requested range. Empty reports return zero totals and no series entries.
+Organization currency controls string scale; aggregates may exceed a single
+record's bound, and net may be negative. A selected currency mismatch fails closed.
+No report read writes audit, financial state, events, or currency-lock markers.
+
+## Prompt 18 simplified cash-basis performance
+
+P&L uses the same canonical current-state totals as Cash Flow: revenue is RECORDED
+Payments by paymentDate, expenses are ACTIVE Expenses by expenseDate, and
+netResult is revenue minus expenses. REVERSED/VOIDED facts contribute zero;
+reversal rows are never subtracted again. Invoice issue and unpaid balances do not
+contribute. Archived categories retain their ACTIVE expenses in the breakdown.
+
+Each omitted date bound defaults to the organization-local current month. Ranges
+contain at most 366 inclusive dates. Grouping supports none/month, defaults to
+month, and includes only populated chronological months. None omits the series.
+Category amounts reconcile with the expense total in the same PostgreSQL snapshot;
+category labels use current names. Decimal strings, single organization currency,
+negative results and empty zero totals follow Cash Flow conventions. The required
+SIMPLIFIED_CASH basis and GAAP/IFRS disclaimer identify the management statement.
+No accrual classifications, ledger, report persistence, or financial writes exist.

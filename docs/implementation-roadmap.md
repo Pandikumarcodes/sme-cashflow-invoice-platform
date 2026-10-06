@@ -393,3 +393,20 @@ A backend feature is done only when:
 - [ ] Resolve retention/privacy ownership, reminder policy/provider, and report size limits.
 - [ ] Confirm CSV before PDF and no direct card processing.
 - [ ] Approve architecture checkpoints and prompt-sized implementation order before Prompt 2.
+
+## Prompt 17 implementation sequencing note
+
+The user's explicit Prompt 17 Cash Flow request implements the Cash Flow route
+otherwise listed at Step 18. It introduces only the narrow FinancialModule read
+contract needed by that route and preserves the repository blueprint's module
+boundary. This is not completion of Step 17's broader financial consolidation or
+reconciliation scope. Simplified P&L (Step 19) and all later features remain
+unimplemented; no Prompt 18 work is included in this milestone.
+
+## Prompt 18 implementation sequencing note
+
+The explicit Prompt 18 request implements simplified cash-basis P&L, otherwise
+listed at roadmap Step 19. It extends FinancialModule's narrow read contracts and
+reuses Cash Flow source calculations. This does not complete broader accounting
+or financial-engine consolidation. Analytics and every subsequent feature remain
+deferred; no user Prompt 19 work is included.

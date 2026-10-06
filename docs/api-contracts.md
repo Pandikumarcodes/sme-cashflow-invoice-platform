@@ -467,6 +467,26 @@ have all three Payment permissions; MEMBER/VIEWER have none, including read.
 - **Response:** `data:{inflows,outflows,netCashFlow,series:[...]}, meta:{fromDate,toDate,groupBy,currency,timezone,basis:"cash"}`; decimals strings.
 - **Errors/Audit:** 400 range/group; read normally not audited.
 
+Prompt 17 implementation: each omitted date bound defaults to the current
+organization-local calendar month's corresponding boundary. `groupBy` defaults
+to `month`; only `day`, `week`, and `month` are accepted. The limit counts
+inclusive calendar dates (366 is valid; 367 is not). Weeks start on ISO Monday.
+Only populated buckets are returned, in ascending order, with
+`{periodStart,inflows,outflows,netCashFlow}`. `periodStart` is the natural bucket
+start as YYYY-MM-DD; a partial first week/month can start before `fromDate`, but
+only facts inside the requested range contribute. Empty ranges return currency-
+scaled zero totals and `series:[]`.
+
+Reports use current RECORDED Payment and ACTIVE Expense states in a read-only
+repeatable-read PostgreSQL transaction. Reversed payments are excluded even when
+their reversal date is outside the range; reversal rows are never subtracted
+again. Voided expenses are excluded and archived categories do not remove active
+expenses. This is a current-state report, not a retained historical snapshot.
+Amounts use Decimal and serialize at organization currency scale, including
+negative net values and sums exceeding individual-record limits. A selected
+mixed-currency fact fails safely with 422 `CURRENCY_MISMATCH`. No opening/closing
+bank balance, audit write, PendingEvent, cache, or queue is introduced.
+
 ### 9.14 Simplified P&L
 
 - **Route:** `GET /organizations/:organizationId/profit-loss?fromDate&toDate&groupBy=none|month`.
@@ -474,6 +494,32 @@ have all three Payment permissions; MEMBER/VIEWER have none, including read.
 - **Rules:** collected RECORDED payments minus ACTIVE paid expenses; not statutory accounting.
 - **Response:** `data:{revenue,expenses,netResult,expenseByCategory,series?}, meta:{...,basis:"SIMPLIFIED_CASH",disclaimer:"Not a GAAP/IFRS financial statement."}`.
 - **Errors:** 400 invalid range/group; decimals exact.
+
+Prompt 18 implementation: each omitted bound uses the organization-local current
+month, and `groupBy` defaults to `month` to match Cash Flow. Only `none` and
+`month` are supported; day/week/year are rejected. The maximum range is 366
+inclusive calendar dates. Monthly series contain
+`{periodStart,revenue,expenses,netResult}` for populated months in chronological
+order; natural month starts label partial periods, but only in-range facts count.
+`groupBy=none` omits `series`. Empty reports return currency-scaled zero totals,
+`expenseByCategory:[]`, and `series:[]` only for monthly grouping.
+
+Category entries are `{categoryId,categoryName,amount}`, ordered by current name
+then ID. Only categories with eligible ACTIVE expenses appear; archived categories
+remain included and labels reflect current names, not historical name snapshots.
+Revenue, expenses, netResult, series and category amounts are Decimal strings at
+the organization currency scale. Metadata echoes fromDate/toDate/groupBy/currency/
+timezone, basis `SIMPLIFIED_CASH`, and disclaimer
+`Not a GAAP/IFRS financial statement.`. The financial result is exposed as
+`netResult`, not an alternate `profit` field.
+
+The Financial reader reuses canonical Cash Flow aggregates and currency checks,
+then groups categories in PostgreSQL on the same read-only repeatable-read
+transaction client. RECORDED Payments use paymentDate; ACTIVE Expenses use
+expenseDate. REVERSED/VOIDED rows are excluded by current state, without separately
+subtracting reversal rows; invoice totals never contribute. Mixed selected
+currencies fail safely with 422 CURRENCY_MISMATCH. Reads create no audits, events,
+jobs, financial write records, or persisted report snapshots.
 
 ### 9.15 Analytics summary
 
@@ -522,6 +568,44 @@ have all three Payment permissions; MEMBER/VIEWER have none, including read.
 - There is no payment PATCH/DELETE, allocation, refund, or batch-payment endpoint.
 
 ### Expense categories and expenses
+
+Prompt 16 implements exactly the nine routes in section 8. Category input is
+name/description only (description optional, nonblank, max 500); PATCH is nonempty
+and ACTIVE only. Display names trim/collapse whitespace; normalizedName lowercases
+using JavaScript locale-independent lowercase, without Unicode transformations.
+Both final names are at most 100 characters; tenant uniqueness includes archived
+rows. Defaults may archive; systemKey is server-owned and immutable. Repeat archive
+returns the unchanged resource with no duplicate audit. Category list supports
+status/limit/after only, defaults ACTIVE and orders name asc/id asc.
+
+Expense input is categoryId/amount/expenseDate/description and nullable optional
+vendorPayee/reference/notes. PATCH is nonempty; explicit null clears only those
+three nullable fields. Bounds: vendor 200, description 500, reference 150, notes
+1000, reason 500; text trims and must be nonblank. New Category assignment requires
+same-tenant ACTIVE status and a row lock; unchanged archived references remain
+valid. Responses include category {id,name,status,systemKey}; money is a currency-
+scale string, expenseDate YYYY-MM-DD, version and server actors/void evidence.
+Create atomically snapshots and permanently locks Organization currency. Positive
+canonical amount strings obey currency minor units without rounding.
+
+Expense lists default ACTIVE/expenseDate desc/id desc; allowed filters/sorts are
+in section 3. Vendor matching is literal case-insensitive contains; vendor nulls
+sort last in both directions. Inclusive date span max 1,825 days. Category and
+Expense cursors bind resource kind, tenant, filters and ordering. Expense detail
+includes VOIDED history. PATCH/void use If-Match and return incremented ETags.
+
+Errors: malformed syntax/type/unknown fields 400 VALIDATION_ERROR; impossible
+calendar date 422 EXPENSE_INVALID_DATE; invalid semantic money 422 INVALID_MONEY;
+foreign/missing resources 404 RESOURCE_NOT_FOUND; stale version 409
+CONCURRENT_MODIFICATION; duplicate category 409 EXPENSE_CATEGORY_ALREADY_EXISTS;
+archived category PATCH 409 EXPENSE_CATEGORY_NOT_EDITABLE; new inactive assignment
+409 EXPENSE_CATEGORY_INACTIVE; VOIDED PATCH 409 EXPENSE_NOT_EDITABLE; fresh repeat
+void 409 EXPENSE_ALREADY_VOIDED. Category resource version/ETag is absent.
+
+Mutations emit EXPENSE_CATEGORY_CREATED/UPDATED/ARCHIVED and EXPENSE_CREATED/
+UPDATED/VOIDED audits in the same transaction. Notes contents are excluded. No
+Expense/Category PendingEvents, request idempotency or business queue is registered.
+
 
 - Category list uses `expense.read`; create/update/archive use `expense_category.manage`; tenant-unique normalized name.
 - Expense detail/list uses `expense.read`; PATCH requires `expense.update`, `If-Match`, ACTIVE only; void command requires `expense.void`, `{reason}`, `If-Match`, returns 200 VOIDED Expense. No DELETE.

@@ -1,6 +1,33 @@
 # SME Cash Flow & Invoice Management System
 
-Backend-first, multi-tenant cash-flow and invoice management platform. The JavaScript backend is a NestJS modular monolith. PostgreSQL/Prisma, Redis/BullMQ infrastructure, authentication, organizations, memberships, reusable RBAC, trusted tenant infrastructure, Customers, Invoices, and Payments/reversals are established. Later financial modules and business workers remain deferred.
+Backend-first, multi-tenant cash-flow and invoice management platform. The JavaScript backend is a NestJS modular monolith. PostgreSQL/Prisma, Redis/BullMQ infrastructure, authentication, organizations, memberships, reusable RBAC, trusted tenant infrastructure, Customers, Invoices, Payments/reversals, Expenses, Cash Flow, and simplified cash-basis P&L are established. Later analytics and business workers remain deferred.
+
+## Cash Flow
+
+Prompt 17 adds `GET /api/v1/organizations/:organizationId/cash-flow`, protected by
+current membership and `analytics.read`. Query `fromDate`, `toDate`, and
+`groupBy=day|week|month` select up to 366 inclusive business dates; omitted bounds
+use the organization-local current month and grouping defaults to month. The
+response contains Decimal-string inflows/outflows/net, populated chronological
+periods, and currency/timezone/range metadata. RECORDED Payments and ACTIVE
+Expenses are authoritative; reversals and voids exclude their original records,
+and archived categories preserve eligible expenses. PostgreSQL groups the facts
+in one read-only repeatable-read transaction. No schema migration, financial write
+model, queue, cache, P&L, or accounting expansion is introduced.
+
+## Simplified cash-basis Profit & Loss
+
+Prompt 18 adds `GET /api/v1/organizations/:organizationId/profit-loss`, protected by
+current membership and `analytics.read`. Query `fromDate`, `toDate`, and
+`groupBy=none|month` use Cash Flow's current-month date defaults and 366 inclusive
+date limit; grouping defaults to month. Returns Decimal-string `revenue`,
+`expenses`, `netResult`, category totals, and populated monthly series (omitted for
+none). Required metadata includes `SIMPLIFIED_CASH` and
+`Not a GAAP/IFRS financial statement.`. RECORDED Payments and ACTIVE Expenses are
+authoritative, with the same reversal/void interpretation as Cash Flow. Archived
+categories retain active expense totals. All aggregates share a read-only
+repeatable-read PostgreSQL transaction; no schema change, write model, audit,
+queue, cache, or advanced accounting system is introduced.
 
 ## Prerequisites
 
@@ -81,7 +108,7 @@ on their Prisma client and use explicit tenant query helpers. See
 [`docs/backend-architecture.md`](docs/backend-architecture.md#18-implemented-tenant-isolation-convention-prompt-12).
 
 Base currency uses an ISO 4217 code and can change only before `currencyLockedAt` is set by first
-invoice creation (or future expense creation). Timezones must be valid IANA zones. Registration continues to create only
+invoice or expense creation. Timezones must be valid IANA zones. Registration continues to create only
 a global User; it never creates an organization implicitly.
 
 Every response includes `X-Request-Id`. A valid incoming UUID/ULID-style request ID is propagated; otherwise the server generates a UUID.
@@ -155,8 +182,7 @@ Every mutation and its mandatory audit use one transaction. Current PostgreSQL
 membership and the existing trusted tenant helpers govern every operation.
 
 The wider conceptual Customer fields are not in the current Prisma schema and
-are not accepted by this API. No Customer schema migration is introduced. Expenses and
-later financial modules remain unimplemented.
+are not accepted by this API. No Customer schema migration is introduced.
 
 Customer cursor tests run with `npm run test`; PostgreSQL isolation, concurrency,
 and audit rollback tests with `npm run test:integration`; HTTP validation and
@@ -256,5 +282,25 @@ and `test/payments.e2e-spec.js`; run the existing unit/integration/E2E commands.
 
 The authoritative planning documents are in [`docs/`](docs/). Repository-specific implementation rules are summarized in [`AGENTS.md`](AGENTS.md).
 
-Current exclusions are intentional: Expenses, reporting, business workers,
+Current exclusions are intentional: broader analytics, reporting, business workers,
 Swagger, and the frontend have not started.
+
+## Expense categories and expenses
+
+Prompt 16 implements four Category and five Expense APIs under the tenant prefix.
+Categories support list/create/update/archive. Expenses support create/list/detail/
+update/void, with Decimal amounts, real business dates, Category summaries and
+If-Match/ETag concurrency. Lists default to ACTIVE and support bound cursors.
+Category archive and new assignment share a PostgreSQL row lock. First expense
+creation permanently locks Organization currency atomically with its audit.
+Void is terminal; archived category references remain valid historical data.
+
+Expense mutations write mandatory transactional audits. Full notes are excluded
+from audit evidence. Expense PendingEvents and request idempotency are deferred;
+Prompt 16 introduced no queue processor or Cash Flow/P&L API; Prompt 17 adds
+the Cash Flow read described above. Existing schema and
+composite tenant foreign keys are preserved; the two missing performance indexes
+are documented follow-ups. Unit tests are colocated with the module; PostgreSQL
+and HTTP coverage lives in test/integration/expenses.integration-spec.js and
+test/expenses.e2e-spec.js. Run database integration and E2E suites sequentially
+because they share the dedicated guarded sme_cashflow_test database.

@@ -14,6 +14,9 @@ import { MembershipsModule } from './modules/memberships/memberships.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
 import { InvoicesModule } from './modules/invoices/invoices.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
+import { ExpensesModule } from './modules/expenses/expenses.module.js';
+import { CashFlowModule } from './modules/cash-flow/cash-flow.module.js';
+import { ProfitLossModule } from './modules/profit-loss/profit-loss.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 
 @Module({
@@ -31,6 +34,9 @@ import { ObservabilityModule } from './observability/observability.module.js';
     CustomersModule,
     InvoicesModule,
     PaymentsModule,
+    ExpensesModule,
+    CashFlowModule,
+    ProfitLossModule,
     HealthModule,
   ],
 })

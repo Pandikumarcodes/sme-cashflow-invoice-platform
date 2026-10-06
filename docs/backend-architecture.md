@@ -483,3 +483,55 @@ tenant foreign keys (Invoice/Customer, InvoiceItem/Invoice, Payment/Invoice,
 PaymentReversal/Payment, Expense/ExpenseCategory, ReminderDelivery/Invoice).
 Neither replaces the other. Prompt 12 changes no schema, migrations, financial
 constraints, or product HTTP routes.
+
+## Prompt 16 Expenses module
+
+ExpensesModule owns Category and Expense controllers, application services,
+allowlisted DTOs, pure validation and pagination, responses and scoped persistence.
+It imports AuthModule and OrganizationsModule; Organizations retains default
+category seeding and never imports Expenses, so the module graph remains acyclic.
+The existing narrow OrganizationInvoiceSettings contract is reused for its
+Organization financial/currency lock capability without adding another provider.
+Controllers validate transport and obtain trusted context; services reauthorize
+using the same transaction client used for locking, writes and mandatory audits.
+Create locks Organization then Category; update locks Expense then a different
+Category when reassigned; archive/update Category lock only Category, and void
+locks only Expense. Category operations never wait on an Expense lock, avoiding
+a lock cycle. Category archive cannot commit ahead of an in-progress assignment
+without the assignment observing its archived status.
+
+No Expense business queue, PendingEvent consumer, idempotency contract or aggregate
+engine is introduced. Decimal source facts and retained terminal history are ready
+for future tenant-scoped financial queries.
+
+## Prompt 17 Cash Flow read boundary
+
+CashFlowModule imports AuthModule and FinancialModule. Its thin controller exposes
+one analytics.read route; the application service rechecks branded tenant scope
+and current membership with the transaction client. FinancialModule owns only a
+narrow CashFlowReader contract, pure calendar/report rules, and a reviewed
+parameterized read adapter under financial/infrastructure. It owns no tables and
+imports no source module's private persistence or mutation services.
+
+The service owns a PostgreSQL RepeatableRead transaction and sets it READ ONLY
+before resolving current organization settings and querying facts. Each UNION
+branch independently binds the trusted organization ID and business-date range;
+PostgreSQL groups RECORDED Payments and ACTIVE Expenses before combining buckets.
+No facts are loaded individually, category joins do not affect historical
+eligibility, and reversal records are never subtracted separately. Totals and net
+use Decimal, with a fail-closed currency consistency check. No audit/event/cache,
+queue, schema change, broad accounting engine, or P&L module is introduced.
+
+## Prompt 18 Profit & Loss read boundary
+
+ProfitLossModule imports AuthModule and FinancialModule, with a thin controller
+and an application service that owns trusted-context reauthorization and a
+READ ONLY RepeatableRead transaction. FinancialModule additionally exports a
+narrow ProfitLossReader. It reuses CashFlowReader's canonical source predicates,
+Decimal calculation and currency checks; a tenant-safe category aggregation joins
+ExpenseCategory by both organization and category ID, without filtering archived
+categories. Both queries share the service's transaction client and snapshot.
+
+Financial domain code owns allowed none/month options and simplified cash-basis
+response/disclosure mapping. No source mutation contract, new persistence model,
+locking, audit/event side effect, queue, cache, or accounting framework is added.

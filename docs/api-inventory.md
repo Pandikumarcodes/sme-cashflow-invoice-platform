@@ -6,10 +6,10 @@ verified against controllers in `src/`; planned routes come from
 
 ## 1. API Summary
 
-- Current implemented APIs: **40**
+- Current implemented APIs: **51**
 - Estimated final APIs: **60–70**
-- Estimated remaining APIs: **20–30**
-- Current milestone: **Prompt 15 Payments / before Prompt 16: Expenses**
+- Estimated remaining APIs: **9–19**
+- Current milestone: **Prompt 18 Profit & Loss**
 - Base path: `/api/v1`
 - Authentication: Bearer access token plus HttpOnly refresh cookie
 - Backend deployment: Local development only
@@ -21,7 +21,10 @@ Prompt 12 introduced trusted tenant context and explicit Prisma query helpers
 with **zero new HTTP APIs**, retaining 23 APIs at that milestone. Prompt 13 uses
 that infrastructure and adds **five Customer APIs**, bringing the count to **28**.
 Prompt 14 added **eight Invoice APIs**, bringing the count to **36**.
-Prompt 15 adds **four Payment APIs**, bringing the current count to **40**.
+Prompt 15 adds **four Payment APIs**, bringing the count to **40**.
+Prompt 16 adds **four Category and five Expense APIs**, bringing the count to **49**.
+Prompt 17 adds **one Cash Flow API**, bringing the count to **50**.
+Prompt 18 adds **one Profit & Loss API**, bringing the current count to **51**.
 
 ---
 
@@ -36,14 +39,14 @@ Prompt 15 adds **four Payment APIs**, bringing the current count to **40**.
 | Customers | 5 | 0 | IMPLEMENTED |
 | Invoices | 8 | 0 | IMPLEMENTED |
 | Payments | 4 | 0 | IMPLEMENTED |
-| Expenses | 0 | 9 | PLANNED — NOT IMPLEMENTED |
-| Cash Flow | 0 | 1 | PLANNED — NOT IMPLEMENTED |
-| P&L | 0 | 1 | PLANNED — NOT IMPLEMENTED |
+| Expenses | 9 | 0 | IMPLEMENTED |
+| Cash Flow | 1 | 0 | IMPLEMENTED |
+| P&L | 1 | 0 | IMPLEMENTED |
 | Analytics | 0 | 2 | PLANNED — NOT IMPLEMENTED |
 | Notifications | 0 | 3 | PLANNED — NOT IMPLEMENTED |
 | Reports | 0 | 8 | PLANNED — NOT IMPLEMENTED |
 | Audit Logs | 0 | 1 | PLANNED — NOT IMPLEMENTED |
-| **Total** | **40** | **25** | **Estimated final baseline: 65** |
+| **Total** | **51** | **14** | **Estimated final baseline: 65** |
 
 The final range allows for planned API consolidation or additions. A planned
 count does not indicate that a database model or service exists.
@@ -94,8 +97,19 @@ count does not indicate that a database model or service exists.
 | 38 | GET | `/api/v1/organizations/:organizationId/payments` | Payments | Bearer + active membership | `payment.read` | List/filter payments | Future frontend: Payments |
 | 39 | GET | `/api/v1/organizations/:organizationId/payments/:paymentId` | Payments | Bearer + active membership | `payment.read` | Get payment and reversal | Future frontend: Payments |
 | 40 | POST | `/api/v1/organizations/:organizationId/payments/:paymentId/reverse` | Payments | Bearer + active membership | `payment.reverse` | Reverse payment in full with idempotency | Future frontend: Payments |
+| 41 | GET | `/api/v1/organizations/:organizationId/expense-categories` | Expenses | Bearer + active membership | `expense.read` | List categories | Future frontend: Expenses |
+| 42 | POST | `/api/v1/organizations/:organizationId/expense-categories` | Expenses | Bearer + active membership | `expense_category.manage` | Create category | Future frontend: Expenses |
+| 43 | PATCH | `/api/v1/organizations/:organizationId/expense-categories/:categoryId` | Expenses | Bearer + active membership | `expense_category.manage` | Update category | Future frontend: Expenses |
+| 44 | POST | `/api/v1/organizations/:organizationId/expense-categories/:categoryId/archive` | Expenses | Bearer + active membership | `expense_category.manage` | Archive category | Future frontend: Expenses |
+| 45 | POST | `/api/v1/organizations/:organizationId/expenses` | Expenses | Bearer + active membership | `expense.create` | Create expense | Future frontend: Expenses |
+| 46 | GET | `/api/v1/organizations/:organizationId/expenses` | Expenses | Bearer + active membership | `expense.read` | List expenses | Future frontend: Expenses |
+| 47 | GET | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Expenses | Bearer + active membership | `expense.read` | Read expense | Future frontend: Expenses |
+| 48 | PATCH | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Expenses | Bearer + active membership | `expense.update` | Update expense using If-Match | Future frontend: Expenses |
+| 49 | POST | `/api/v1/organizations/:organizationId/expenses/:expenseId/void` | Expenses | Bearer + active membership | `expense.void` | Void expense using If-Match | Future frontend: Expenses |
+| 50 | GET | `/api/v1/organizations/:organizationId/cash-flow` | Cash Flow | Bearer + active membership | `analytics.read` | Derived cash inflow/outflow/net and chronological series | Future frontend: Cash Flow |
+| 51 | GET | `/api/v1/organizations/:organizationId/profit-loss` | P&L | Bearer + active membership | `analytics.read` | Simplified cash-basis performance and category totals | Future frontend: Profit & Loss |
 
-**TOTAL IMPLEMENTED APIs: 40**
+**TOTAL IMPLEMENTED APIs: 51**
 
 ---
 
@@ -443,6 +457,93 @@ No Redis/BullMQ call or business worker is introduced.
   rejected. Unknown/server-owned input is rejected. Foreign/missing resources
   are concealed as 404. No processor, refund or reconciliation engine exists.
 
+### Expenses — IMPLEMENTED (Prompt 16)
+
+Rows 41–49 implement exactly four Category and five Expense routes. Categories
+accept name and optional description; names trim, collapse whitespace and
+lowercase without Unicode normalization. Names are tenant-unique, including
+archived names. Category PATCH requires ACTIVE; systemKey is immutable. Defaults
+remain seeded by Organizations and may archive. Archive repeats return the same
+resource without another write/audit. Categories have no resource version/ETag.
+
+OWNER, ADMIN and ACCOUNTANT have all five canonical Expense permissions. VIEWER
+has expense.read only; MEMBER has no Expense permission. Every route authenticates
+and resolves current PostgreSQL Membership, and mutation services reauthorize
+using their transaction client. Role/status changes apply to the same JWT.
+
+Expenses accept categoryId, amount, expenseDate, description and optional nullable
+vendorPayee/reference/notes. Amounts are positive Decimal strings, obey currency
+minor units without rounding, and serialize at the currency scale. First Expense
+creation permanently locks Organization currency in the same transaction.
+New assignments require a locked ACTIVE category in the same tenant; unchanged
+archived references remain editable and visible in category summaries.
+PATCH/void require If-Match, increment version once and return an ETag. VOIDED
+is immutable; a fresh repeat void conflicts. Actors and void evidence are server-owned.
+
+Lists use default 25/max 100, bound after cursors and id ties. Categories default
+ACTIVE/name asc. Expenses default ACTIVE/expenseDate desc; filters categoryId,
+status, expenseDateFrom/To and literal case-insensitive vendor; inclusive ranges
+span at most 1,825 days. Sorts expenseDate/createdAt/amount/vendorPayee asc/desc;
+nullable vendors always last. Dates use YYYY-MM-DD: malformed input 400, impossible
+calendar date 422 EXPENSE_INVALID_DATE. Foreign/missing resources receive the same 404.
+
+All six mutation actions audit atomically with allowlisted before/after fields;
+notes content is omitted. No Expense PendingEvents, queue work or request
+idempotency is implemented. Cash Flow counts only ACTIVE source expenses;
+P&L also counts the same authoritative source facts. Schema/migrations are unchanged.
+The Category tenant/status/name and Expense tenant/createdAt/id indexes remain
+explicit optimization follow-ups.
+
+### Cash Flow — IMPLEMENTED (Prompt 17)
+
+GET row 50 requires access authentication, current ACTIVE organization membership,
+and analytics.read; OWNER/ADMIN/ACCOUNTANT/VIEWER may read. Only fromDate, toDate,
+and groupBy are accepted. Missing bounds use the organization-local current month;
+groupBy defaults to month and supports day/week/month, with ISO Monday weeks.
+The inclusive range contains at most 366 calendar dates.
+
+Returns data:{inflows,outflows,netCashFlow,series} and
+meta:{fromDate,toDate,groupBy,currency,timezone,basis:"cash"}. Series items contain
+periodStart (natural bucket start), inflows, outflows and netCashFlow; populated
+buckets appear chronologically, without gap filling. Empty reports contain zero
+totals and an empty series. Money remains Decimal and serializes as currency-scaled
+strings, including negative net and sums above individual-record limits.
+
+A narrow FinancialModule read adapter groups tenant-scoped RECORDED Payments by
+paymentDate and ACTIVE Expenses by expenseDate in PostgreSQL. REVERSED/VOIDED rows
+are excluded by current state, reversal rows are never subtracted again, and
+archived categories do not exclude historical expenses. Invoice totals do not
+contribute. Current organization settings and grouped facts share one read-only
+repeatable-read transaction, with service reauthorization. Selected currency
+inconsistency returns safe 422; invalid input 400, unauthorized tenant 404, missing
+permission 403. No read audits, events, schema changes, cache, queue, FX, or bank
+balance are introduced. The blueprint's Financial/CashFlow boundary is preserved.
+
+### Profit & Loss — IMPLEMENTED (Prompt 18)
+
+Row 51 exposes GET /api/v1/organizations/:organizationId/profit-loss with
+analytics.read and current ACTIVE organization membership. Only fromDate, toDate,
+and groupBy=none|month are accepted. Defaults match Cash Flow: current organization-
+local month and month grouping, at most 366 inclusive calendar dates.
+
+Returns data:{revenue,expenses,netResult,expenseByCategory,series?} and metadata
+fromDate/toDate/groupBy/currency/timezone/basis:SIMPLIFIED_CASH with disclaimer
+"Not a GAAP/IFRS financial statement.". Monthly entries are
+{periodStart,revenue,expenses,netResult}; only populated months appear, in ascending
+order, with partial-month facts clipped to the range. None omits series. Category
+entries are {categoryId,categoryName,amount}, ordered by current name then ID,
+including archived categories with active expenses. Empty reports have zero totals
+and empty breakdowns; monthly series is empty. All money is Decimal/string.
+
+The Financial reader reuses Cash Flow's RECORDED Payment/paymentDate and ACTIVE
+Expense/expenseDate aggregation, reversal/void exclusion and currency checks,
+then groups categories using the same read-only repeatable-read transaction.
+No reversal rows are subtracted again, invoice totals never contribute, and reads
+write no audits/events/models/jobs. Safe errors are 400 input, 403 permission,
+404 concealed tenant access, and 422 selected currency mismatch. No schema change,
+FX, accrual classifications or ledger is introduced. The roadmap's Step 19 P&L
+capability is delivered under the user's explicit Prompt 18 request.
+
 ## 5. Current User Workflow and APIs
 
 ```text
@@ -475,38 +576,13 @@ Log out
 ```
 
 The current product flow includes organization, membership, customer, invoice,
-payment recording and full reversal workflows.
+payment recording, full reversal, expense category management, expense/void workflows,
+and derived Cash Flow/P&L reporting.
 
 ## 6. Future Product API Map
 
 Every route in this section is **PLANNED — NOT IMPLEMENTED**. These are
 finalized contract routes, subject to implementation review.
-
-### Expenses — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| GET | `/api/v1/organizations/:organizationId/expense-categories` | List categories | Expenses |
-| POST | `/api/v1/organizations/:organizationId/expense-categories` | Create category | Expenses |
-| PATCH | `/api/v1/organizations/:organizationId/expense-categories/:categoryId` | Update category | Expenses |
-| POST | `/api/v1/organizations/:organizationId/expense-categories/:categoryId/archive` | Archive category | Expenses |
-| POST | `/api/v1/organizations/:organizationId/expenses` | Create expense | Expenses |
-| GET | `/api/v1/organizations/:organizationId/expenses` | List expenses | Expenses |
-| GET | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Get expense | Expenses |
-| PATCH | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Update expense | Expenses |
-| POST | `/api/v1/organizations/:organizationId/expenses/:expenseId/void` | Void expense | Expenses |
-
-### Cash Flow — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| GET | `/api/v1/organizations/:organizationId/cash-flow` | Actual cash inflow/outflow/net | Cash Flow |
-
-### P&L — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| GET | `/api/v1/organizations/:organizationId/profit-loss` | Simplified cash-basis performance | Profit & Loss |
 
 ### Analytics — PLANNED
 
@@ -548,7 +624,7 @@ finalized contract routes, subject to implementation review.
 |---|---|---|
 | Login | `POST /auth/login`, `/auth/refresh`, `/auth/logout` | Frontend not implemented |
 | Register | `POST /auth/register` | Frontend not implemented |
-| Dashboard | Planned analytics/cash-flow/P&L routes | Frontend not implemented |
+| Dashboard | Implemented Cash Flow/P&L; planned analytics routes | Frontend not implemented |
 | Organization Selector | `GET /organizations`, `POST /organizations` | Frontend not implemented |
 | Organization Settings | `GET/PATCH /organizations/:organizationId`, close, transfer ownership | Frontend not implemented |
 | Members | Member and invitation routes | Frontend not implemented |
@@ -557,9 +633,9 @@ finalized contract routes, subject to implementation review.
 | Invoices | Implemented invoice collection routes | Frontend not implemented |
 | Invoice Details | Implemented invoice item/lifecycle and payment recording | Frontend not implemented |
 | Payments | Implemented payment list/detail/reversal | Frontend not implemented |
-| Expenses | Planned expense/category routes | Frontend not implemented |
-| Cash Flow | Planned cash-flow route | Frontend not implemented |
-| Profit & Loss | Planned profit-loss route | Frontend not implemented |
+| Expenses | Implemented expense/category routes | Frontend not implemented |
+| Cash Flow | Implemented cash-flow route | Frontend not implemented |
+| Profit & Loss | Implemented profit-loss route | Frontend not implemented |
 | Analytics | Planned analytics routes | Frontend not implemented |
 | Notifications | Planned notification routes | Frontend not implemented |
 | Reports | Planned report/export routes | Frontend not implemented |
@@ -576,7 +652,9 @@ finalized contract routes, subject to implementation review.
 | Customers | `Customer`, `Organization`, `Membership`, `AuditLog` |
 | Invoices | `Invoice`, `InvoiceItem`, `InvoiceSequence`, `Customer`, `AuditLog`, `PendingEvent` |
 | Payments | `Payment`, `PaymentReversal`, `Invoice`, `IdempotencyRecord`, `AuditLog`, `PendingEvent` |
-| Future Expenses | `Expense`, `ExpenseCategory`, `AuditLog` |
+| Expenses | `Expense`, `ExpenseCategory`, `Organization`, `Membership`, `AuditLog` |
+| Cash Flow | `Payment`, `Expense`, `Organization`, `Membership` (read only) |
+| P&L | `Payment`, `Expense`, `ExpenseCategory`, `Organization`, `Membership` (read only) |
 | Future Notifications | `Notification`, `ReminderDelivery`, `Invoice` |
 | Future Reports | `ReportExport`, `PendingEvent`, `AuditLog` |
 | Future Audit Logs | `AuditLog` |
@@ -652,7 +730,9 @@ worker architecture. No production deployment has occurred.
 - Customer collection/detail/update/archive routes.
 - Invoice collection/detail/update/delete/issue/cancel/void routes.
 - Payment record/list/detail/reversal routes.
-- All planned expense, analytics, notification,
+- Expense category collection/update/archive and Expense collection/detail/update/void routes.
+- Cash Flow and P&L aggregate routes.
+- All planned analytics, notification,
   report, and audit routes.
 
 Tenant protection means access authentication, an ACTIVE membership in the
@@ -693,13 +773,23 @@ permission for an active member is `403`.
 | `GET /organizations/:organizationId/payments` | `payment.read` |
 | `GET /organizations/:organizationId/payments/:paymentId` | `payment.read` |
 | `POST /organizations/:organizationId/payments/:paymentId/reverse` | `payment.reverse` |
+| `GET /organizations/:organizationId/expense-categories` | `expense.read` |
+| `POST /organizations/:organizationId/expense-categories` | `expense_category.manage` |
+| `PATCH /organizations/:organizationId/expense-categories/:categoryId` | `expense_category.manage` |
+| `POST /organizations/:organizationId/expense-categories/:categoryId/archive` | `expense_category.manage` |
+| `POST /organizations/:organizationId/expenses` | `expense.create` |
+| `GET /organizations/:organizationId/expenses` | `expense.read` |
+| `GET /organizations/:organizationId/expenses/:expenseId` | `expense.read` |
+| `PATCH /organizations/:organizationId/expenses/:expenseId` | `expense.update` |
+| `POST /organizations/:organizationId/expenses/:expenseId/void` | `expense.void` |
+| `GET /organizations/:organizationId/cash-flow` | `analytics.read` |
+| `GET /organizations/:organizationId/profit-loss` | `analytics.read` |
 
 ### Planned Permission Map — NOT IMPLEMENTED
 
 | Planned API area | Required Permission |
 |---|---|
-| Expense categories and expenses | `expense.read`, `expense_category.manage`, `expense.create`, `expense.update`, `expense.void` |
-| Cash Flow, P&L, Analytics | `analytics.read` |
+| Analytics | `analytics.read` |
 | Reports and exports | `report.read`, `report.export` |
 | Notifications | `notification.read`, `notification.update_self` |
 | Audit Logs | `audit.read` |
@@ -721,7 +811,8 @@ permission for an active member is `403`.
 - Broader conceptual Customer fields need a future reviewed schema migration.
 - Optional Invoice notes/terms/reference and recommended invoice idempotency replay are deferred.
 - Optional Payment reference/notes/reference search await schema support.
-- Expense, financial-query, notification, report,
+- Expense request idempotency and the two documented performance indexes are deferred.
+- Broader analytics, notification, report,
   and audit-read APIs are not implemented.
 - There is no AuditLog read API.
 - Swagger/OpenAPI is deferred to Prompt 27.
@@ -748,10 +839,10 @@ Do not manually increase the API count without verifying controllers.
 
 ## 16. Final Dashboard
 
-- Current implemented APIs: **40**
+- Current implemented APIs: **51**
 - Estimated final APIs: **60–70**
-- Implemented modules: **7 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments
-- Financial APIs implemented: **12**
+- Implemented modules: **10 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L
+- Financial APIs implemented: **23**
 - Frontend implemented: **No**
 - Backend deployed: **No**
-- Next milestone: **Prompt 16 — Expenses**
+- Next feature: **Analytics, pending a separate request**

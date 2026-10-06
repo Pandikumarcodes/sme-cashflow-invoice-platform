@@ -593,3 +593,19 @@ Future migrations may add custom roles, FX/multi-currency, gateway transaction I
 - Confirm currency minor-unit registry and half-away-from-zero rounding.
 - Confirm no reporting-period lock and no normal expense hard delete.
 - Confirm PostgreSQL-specific constraints may use reviewed SQL migrations.
+
+## Prompt 16 schema verification and optimization follow-ups
+
+ExpenseCategory and Expense use the existing initial migration and Prisma models.
+No Prompt 16 schema change or migration is required. Composite tenant Category
+FKs, RESTRICT deletion, positive NUMERIC(19,4) amounts and ACTIVE/VOIDED evidence
+CHECK constraints remain in place. Category has no version column.
+
+The tenant/status/name Category index and Expense (organizationId,createdAt,id)
+index described above are planned optimizations absent from current migrations.
+They remain deferred pending representative query-plan measurements; Prompt 16
+uses the existing uniqueness and expenseDate/category indexes. Category archive
+and new assignment lock the same Category row. Expense edit/void lock the Expense
+row and use tenant/id/ACTIVE/expected-version predicates. First creation uses
+the Organization-owned currency lock and commits its marker, Expense and audit
+together. No Expense idempotency or PendingEvent rows are written.
