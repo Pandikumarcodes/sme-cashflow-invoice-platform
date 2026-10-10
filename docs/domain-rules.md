@@ -320,6 +320,18 @@ All queries filter organization and single currency. Return currency, range, asO
 - BullMQ payload/role/totals are untrusted hints. Job carries organization/resource IDs and version; worker revalidates.
 - ReportExport is tenant-owned. Download rechecks current membership and `report.export` permission; guessed/cross-tenant IDs return not found.
 - CSV starts with safe escaping, including spreadsheet formula-injection defense. Export does not lock source records.
+- Prompt 21 report previews and exports share current-state canonical Financial
+  readers. Issued invoice names use billToName; recorded receipt sums through the
+  explicit as-of business date replace settlement caches. Aging uses the same five
+  buckets as Analytics. Reversed/voided source facts are excluded and archived
+  dimensions preserve eligible facts. Monetary values serialize as currency-scale
+  strings. CSV neutralizes user-controlled formula prefixes, including whitespace
+  bypasses, while preserving trusted negative monetary cells.
+- Report creation/download are audited. Completion and one REPORT_READY notification
+  commit together. Workers recheck current requester access and never mutate money.
+  Generation attempts are bounded to three; READY/FAILED/EXPIRED are terminal.
+  Expiry uses the documented configurable development lifetime, enforced lazily;
+  files/metadata are retained without a new deletion scheduler.
 
 ## 15. Audit rules
 
@@ -530,3 +542,68 @@ category labels use current names. Decimal strings, single organization currency
 negative results and empty zero totals follow Cash Flow conventions. The required
 SIMPLIFIED_CASH basis and GAAP/IFRS disclaimer identify the management statement.
 No accrual classifications, ledger, report persistence, or financial writes exist.
+
+## Prompt 19 analytics decisions
+
+Analytics reuses period Cash Flow/P&L truth and keeps issue-date cohorts separate
+from payment-date period totals. Collection rate is cohort receipts through asOf /
+current ISSUED cohort totals times 100; zero denominator is null. Final-payment
+delay averages max eligible paymentDate minus dueDate only for positive-total,
+fully paid cohort invoices, with an explicit sample size and null empty sample.
+
+Receivables/aging recompute invoice total minus RECORDED payments through asOfDate
+for current ISSUED invoices whose issueDate is not after asOf. They are independent
+of the summary's issue-date range. DRAFT/CANCELLED/VOID claims are excluded; fully
+paid balances are excluded and due today is current. Archived customers do not
+remove eligible invoices. Aging bins are CURRENT, 1-30, 31-60, 61-90 and 91+ overdue
+calendar days. Summary counts include all four current invoice lifecycle statuses
+by issueDate; customer count is current ACTIVE. All selected monetary sources must
+match organization currency; impossible overpayment fails closed rather than being
+clamped. Amounts and ratios use Decimal; counts alone use ordinary integers.
+
+Current-state correction exclusions take precedence over historical reconstruction:
+asOfDate is a business-date cutoff, not a claim about what a previous report showed.
+All sections use one READ ONLY RepeatableRead snapshot, with no read audit, event,
+job, cache, model, comparison metric, forecast, or independent cash calculation.
+
+## Prompt 20 notification and reminder decisions
+
+Notification is recipient-owned durable inbox state: UNREAD -> READ -> ARCHIVED,
+or UNREAD -> ARCHIVED. Archive is terminal and retries preserve first transition
+timestamps. Default inbox omits archived rows. Permissions remain canonical
+notification.read/update_self, with current membership and recipient checks.
+
+Reminder policy is validated deployment configuration: enabled (true), due-soon
+exactly three days before due, overdue on days 1, 8, 15, etc. Defaults resolve the
+MVP policy gap without introducing organization preferences/schema or quiet hours.
+A minute scan evaluates organization-local daily occurrences; missed historical
+occurrences are not replayed as stale customer communications. Candidates and
+workers use current ISSUED invoices, issueDate <= tenant today, and positive total
+minus all current RECORDED receipts, ignoring settlement caches. REVERSED receipts
+are excluded; no reversal row is subtracted. DRAFT/CANCELLED/VOID, fully paid,
+archived-customer, closed-organization or date-ineligible work is suppressed.
+Due today is not overdue. Selected currencies and settlement bounds must agree.
+
+Active users with ACTIVE memberships and canonical invoice.read receive in-app
+reminders; payment.read recipients receive PAYMENT_RECORDED notifications. Source
+events INVOICE_ISSUED/PAYMENT_REVERSED re-evaluate eligibility without inventing new
+notification types. REPORT_READY remains deferred to Reports. SYSTEM is used only
+for exhausted reminder failures, directed to organization.update recipients.
+
+ReminderDelivery is one organization/invoice/type/date/channel occurrence, not one
+recipient. Its existing unique key is authoritative. Fan-out notifications have
+tenant/recipient/semantic keys; the optional single notification link stays null.
+PENDING + delivery PendingEvent commit atomically. IN_APP fan-out, SENT/SUPPRESSED
+outcome and event acknowledgment share a transaction. Terminal outcomes do not
+send again; attemptCount increments only for eligible delivery attempts.
+
+Email is disabled by default and no real external adapter is integrated. Optional
+development/test capture is explicitly not external customer delivery; SENT denotes
+adapter acceptance and capture results have capture-prefixed IDs. Capture is rejected
+in production. A future real adapter requires reviewed consent/templates and durable
+provider idempotency keyed by ReminderDelivery ID across timeout/restart ambiguity.
+Email calls occur outside transactions after a current scoped eligibility check;
+this is an attempt-time check, not a lock held across a customer's future payment.
+Safe results persist in PostgreSQL; retries reuse the same key and have a three-
+attempt delivery ceiling. Exhaustion persists FAILED and a deduplicated admin alert.
+Provider errors/bodies/addresses/content are never logged.

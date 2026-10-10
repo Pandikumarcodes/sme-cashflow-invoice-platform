@@ -529,6 +529,66 @@ jobs, financial write records, or persisted report snapshots.
 - **Response:** bounded sections: `billing` (totalInvoiced, invoice counts), `collections` (collected, rate, average delay/sample), `receivables` (outstanding, overdue), `spending` (expenses), `cash` (netCashFlow/netResult), `customers` (activeCount), plus currency/timezone/range/asOf definitions.
 - **Errors:** 400/422 invalid range/asOf. Do not combine unrelated raw registers.
 
+Prompt 19 implementation: summary accepts only fromDate/toDate/asOfDate. Omitted
+range bounds use the organization-local current month (max 366 inclusive dates);
+asOfDate defaults to tenant today and cannot precede fromDate. No grouping,
+comparison, trend, or previous-period query is supported.
+
+Response data has these exact bounded sections:
+
+- billing: totalInvoiced and invoiceCounts {DRAFT,ISSUED,CANCELLED,VOID}.
+- collections: collected, rate, averagePaymentDelayDays, sampleSize.
+- receivables: outstanding, overdue.
+- spending: expenses.
+- cash: netCashFlow, netResult (the same simplified cash-basis result).
+- customers: activeCount.
+
+Total invoiced sums CURRENT ISSUED invoices by issueDate in range. Lifecycle counts
+use all four current statuses in that issue-date range. Collected/expenses/cash
+reuse Cash Flow's paymentDate/expenseDate range totals. Collection rate is the
+percentage of RECORDED payments through asOfDate allocated to the CURRENT ISSUED
+issue-date cohort, divided by its total, with four decimal places; a zero cohort
+denominator returns null. It is not period collected divided by period invoiced.
+Average delay uses only positive-total fully paid cohort invoices through asOfDate:
+average(max eligible paymentDate - dueDate), with two decimal places and sampleSize.
+Early payment is negative; no paid sample returns null.
+
+Receivables cover all CURRENT ISSUED invoices with issueDate <= asOfDate,
+independent of the selected billing cohort. Balance is invoice total minus
+RECORDED receipts with paymentDate <= asOfDate, recomputed from source rows rather
+than cached balanceDue. Only positive balances contribute. Overdue requires
+dueDate < asOfDate; due today and fully paid invoices are not overdue. Active
+customer count is query-time ACTIVE, independent of range; archived customers do
+not remove otherwise eligible invoice claims. Invoice VOID is the actual enum;
+Expense terminal status remains VOIDED.
+
+Metadata echoes dates/currency/timezone and basis CURRENT_STATE, with named
+receivablesBasis, collectionRateBasis, collectionRateUnit:PERCENT,
+paymentDelayBasis, cashBasis, and customerCountBasis definitions. Amounts are
+currency-scaled Decimal strings, ratios/delays Decimal strings, and counts integers.
+Empty reports contain zero amounts/counts and null rate/delay. All sections share
+one read-only repeatable-read transaction; no audit/event/job/model is written.
+Mixed selected currencies return safe 422 CURRENCY_MISMATCH and invalid source
+settlement returns 409 INVOICE_SETTLEMENT_INCONSISTENT. Invalid input is 400.
+
+### 9.16 Receivables aging (Prompt 19)
+
+- Route: GET /organizations/:organizationId/analytics/receivables-aging.
+- Permission: analytics.read; query only asOfDate (default organization-local today).
+- Same eligible receivable/source-balance rules as summary; no range/cohort filter.
+- Response data: {outstanding,overdue,buckets:[{bucket,invoiceCount,amount}]}.
+- Five ordered buckets: CURRENT (due today/future), 1_30, 31_60, 61_90, 91_PLUS.
+  Age is asOfDate - dueDate in calendar days. Only positive balances are counted;
+  empty buckets remain zero. Amounts reconcile to outstanding and overdue.
+- Metadata: asOfDate/currency/timezone/basis:CURRENT_STATE/receivablesBasis.
+- Authentication, tenant concealment, safe errors and read consistency match summary.
+
+Both analytics routes reflect current corrected states: REVERSED payments and
+VOIDED expenses never contribute, regardless of correction date, with no separate
+reversal subtraction. asOfDate cuts business-date eligibility; it does not
+reconstruct historical recordedAt/reversedAt or invoice lifecycle snapshots.
+Historical timestamp reconstruction remains deferred. No schema migration is needed.
+
 ## 10. Compact module contracts
 
 ### Organizations
@@ -616,9 +676,83 @@ Expense/Category PendingEvents, request idempotency or business queue is registe
 - `POST /reports/exports` requires `report.export`, recommended Idempotency-Key, request `{reportType,format:"CSV",parameters}`; server injects tenant/user, validates range, creates PENDING ReportExport + audit/event, returns 202.
 - Export collection/item require `report.export`. Download requires READY/unexpired and current permission; cross-tenant is 404; not ready 409 `EXPORT_NOT_READY`; expired 410. Successful external contract is 200 streamed CSV with safe filename and content disposition (storage may use an internal redirect). Download is audited.
 
+Prompt 21 implements exactly four previews and four export routes under
+`/organizations/:organizationId`. Preview paths are `reports/invoices`,
+`reports/payments`, `reports/expenses`, and `reports/receivables`. Export creation
+is POST `reports/exports`; GET collection/detail/download paths are
+`report-exports`, `report-exports/:exportId`, and `report-exports/:exportId/download`.
+
+Approved types and parameters (unknown fields are rejected):
+
+| reportType | parameters | Source/output |
+|---|---|---|
+| INVOICE_REGISTER | fromDate, toDate, asOfDate, customerId, status (DRAFT/ISSUED/CANCELLED/VOID) | Issue-date cohort; current lifecycle, immutable bill-to name where issued, authoritative recorded receipts through asOfDate, balance, overdue |
+| PAYMENT_REGISTER | fromDate, toDate, invoiceId | Current RECORDED receipts by paymentDate |
+| EXPENSE_REGISTER | fromDate, toDate, expenseCategoryId, vendorPayee (exact match) | Current ACTIVE paid expenses by expenseDate, including archived category references |
+| RECEIVABLES | asOfDate | Canonical five aging buckets, counts and monetary amounts from Analytics |
+| CASH_FLOW | fromDate, toDate, groupBy (day/week/month; default month) | Canonical cash TOTAL and PERIOD rows |
+| CASH_BASIS_PERFORMANCE | fromDate, toDate, groupBy (none/month; default month) | Canonical cash-basis TOTAL, optional PERIOD and CATEGORY rows |
+
+Date ranges default to the organization-local current month, with at most 366
+inclusive dates. asOfDate defaults to tenant-local today; invoice asOfDate cannot
+precede fromDate. Receivables uses an as-of cutoff rather than a period range.
+All semantics use current source state, not historical database reconstruction.
+Preview filters match the corresponding type's parameters, plus limit (25,
+maximum 100) and after. Registers sort by id ascending; aging uses the fixed
+CURRENT, 1_30, 31_60, 61_90, 91_PLUS order. Cursors bind tenant/type/normalized
+filters. Responses are `{data:[rows],meta:{...parameters,currency,timezone,
+basis:"CURRENT_STATE",limit,hasMore,nextCursor}}`.
+
+Export list accepts limit/after/status/reportType, sorting createdAt/id descending;
+response meta is `{limit,hasMore,nextCursor}`. Detail/create return `{data:export}`.
+Export metadata includes id, organizationId, reportType, format, parameters,
+status, rowCount (string/null), errorCode (FAILED only), completedAt, expiresAt,
+createdAt and updatedAt. No requester ID, internal retry marker, checksum, or
+storage path/key is exposed. Download filename is server-controlled
+`<lowercase_report_type>-<exportId>.csv`.
+
+Idempotency-Key is optional/recommended on creation. Same authorized scope/key
+and normalized intent returns the same export ID with its current lifecycle
+metadata and `Idempotency-Replayed: true`; changed intent is 409. This status
+resource replay intentionally differs from immutable payment receipt replay.
+Requests without keys may create separate exports. Creation audit action is
+`report.export.request`; successful artifact release uses `report.export.download`.
+
+All requested exports run asynchronously. CSV is UTF-8 with CRLF records,
+deterministic type-specific headers, trusted Decimal strings, and formula
+neutralization for user text. Exports are bounded to 10,000 data rows and 10 MiB;
+oversized output durably fails with REPORT_TOO_LARGE, never truncates.
+Development storage is a private local adapter; API and worker must share its
+directory. REPORT_STORAGE_DIRECTORY defaults to `.private/reports` (git-ignored).
+REPORT_EXPIRY_HOURS defaults to 24 from completion (configurable 1–168 hours).
+These are documented development defaults where earlier requirements omitted
+a concrete policy. Authorized metadata/download access lazily persists EXPIRED;
+metadata and files remain retained. No retention/deletion scheduler is added.
+Missing/corrupt ready artifacts return 503 EXPORT_ARTIFACT_UNAVAILABLE.
+
 ### Notifications and audit
 
 - Notification list and read/archive commands apply only to recipient User even within tenant. Read/archive are idempotent; no create public endpoint.
+- Prompt 20 implements GET /organizations/:organizationId/notifications with
+  notification.read; queries are limit (25, max 100), after, status
+  (UNREAD/READ/ARCHIVED), sortBy (createdAt only), sortOrder (desc default).
+  Default inbox includes UNREAD and READ; ARCHIVED is explicit. Sort ties use id.
+  Cursors bind tenant, recipient, status and direction; response meta is
+  {limit,nextCursor,hasMore}, without an expensive total count.
+- POST /organizations/:organizationId/notifications/:notificationId/read and
+  /archive require notification.update_self and an empty body. Both return 200
+  {data:notification}. No If-Match or Idempotency-Key is required. Read moves UNREAD
+  to READ once; archive is terminal. Repeated commands preserve original timestamps,
+  and reading an archived row does not restore it.
+- Each notification exposes id, organizationId, type, status, title, body,
+  relatedEntityType/Id, scheduledAt/readAt/archivedAt, createdAt/updatedAt. Internal
+  recipient IDs, dedupe keys and metadata are not exposed. Related IDs never grant
+  access to the related resource. All canonical roles have self-notification permissions.
+- Missing/inactive tenant membership and foreign or other-recipient notification IDs
+  are concealed as 404. Missing/disabled authentication is 401; permission denial is
+  403; invalid/unknown fields or cursors are 400. Ordinary inbox reads and self-state
+  commands create no financial audit or PendingEvent. No public create, manual-send,
+  bulk-read, preferences, deletion or reminder-management route is introduced.
 - Audit list is read-only, requires `audit.read`, cursor-paginated and filterable. No public POST/PATCH/DELETE. Safe before/after metadata is returned only as stored/redacted.
 
 ## 11. Payment idempotency header

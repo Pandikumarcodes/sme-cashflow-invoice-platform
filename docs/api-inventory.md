@@ -6,10 +6,13 @@ verified against controllers in `src/`; planned routes come from
 
 ## 1. API Summary
 
-- Current implemented APIs: **51**
-- Estimated final APIs: **60–70**
-- Estimated remaining APIs: **9–19**
-- Current milestone: **Prompt 18 Profit & Loss**
+- Current implemented APIs: **64**
+- Estimated final APIs: **65–70**
+- Estimated remaining APIs: **1–6**
+- Current milestone: **Prompt 21 Reports / Export**
+- Verification: Prompt 21 passes 44 unit suites/290 tests, 14 PostgreSQL suites/128
+  tests, 13 E2E suites/69 tests, 3 queue suites/8 tests, and a 213-file build.
+  Formatting, lint, Prisma validation and diff checks pass.
 - Base path: `/api/v1`
 - Authentication: Bearer access token plus HttpOnly refresh cookie
 - Backend deployment: Local development only
@@ -24,7 +27,10 @@ Prompt 14 added **eight Invoice APIs**, bringing the count to **36**.
 Prompt 15 adds **four Payment APIs**, bringing the count to **40**.
 Prompt 16 adds **four Category and five Expense APIs**, bringing the count to **49**.
 Prompt 17 adds **one Cash Flow API**, bringing the count to **50**.
-Prompt 18 adds **one Profit & Loss API**, bringing the current count to **51**.
+Prompt 18 adds **one Profit & Loss API**, bringing the count to **51**.
+Prompt 19 adds **two Financial Analytics APIs**, bringing the current count to **53**.
+Prompt 20 adds **three Notification APIs**, bringing the current count to **56**.
+Prompt 21 adds **eight Report/Export APIs**, bringing the current count to **64**.
 
 ---
 
@@ -42,11 +48,11 @@ Prompt 18 adds **one Profit & Loss API**, bringing the current count to **51**.
 | Expenses | 9 | 0 | IMPLEMENTED |
 | Cash Flow | 1 | 0 | IMPLEMENTED |
 | P&L | 1 | 0 | IMPLEMENTED |
-| Analytics | 0 | 2 | PLANNED — NOT IMPLEMENTED |
-| Notifications | 0 | 3 | PLANNED — NOT IMPLEMENTED |
-| Reports | 0 | 8 | PLANNED — NOT IMPLEMENTED |
+| Analytics | 2 | 0 | IMPLEMENTED |
+| Notifications | 3 | 0 | IMPLEMENTED |
+| Reports | 8 | 0 | IMPLEMENTED |
 | Audit Logs | 0 | 1 | PLANNED — NOT IMPLEMENTED |
-| **Total** | **51** | **14** | **Estimated final baseline: 65** |
+| **Total** | **64** | **1** | **Estimated final baseline: 65** |
 
 The final range allows for planned API consolidation or additions. A planned
 count does not indicate that a database model or service exists.
@@ -108,8 +114,22 @@ count does not indicate that a database model or service exists.
 | 49 | POST | `/api/v1/organizations/:organizationId/expenses/:expenseId/void` | Expenses | Bearer + active membership | `expense.void` | Void expense using If-Match | Future frontend: Expenses |
 | 50 | GET | `/api/v1/organizations/:organizationId/cash-flow` | Cash Flow | Bearer + active membership | `analytics.read` | Derived cash inflow/outflow/net and chronological series | Future frontend: Cash Flow |
 | 51 | GET | `/api/v1/organizations/:organizationId/profit-loss` | P&L | Bearer + active membership | `analytics.read` | Simplified cash-basis performance and category totals | Future frontend: Profit & Loss |
+| 52 | GET | `/api/v1/organizations/:organizationId/analytics/summary` | Analytics | Bearer + active membership | `analytics.read` | Financial dashboard with explicit issue/payment/as-of cohorts | Future frontend: Dashboard |
+| 53 | GET | `/api/v1/organizations/:organizationId/analytics/receivables-aging` | Analytics | Bearer + active membership | `analytics.read` | Source-derived positive receivables in five overdue buckets | Future frontend: Analytics |
+| 54 | GET | `/api/v1/organizations/:organizationId/notifications` | Notifications | Bearer + active membership + recipient | `notification.read` | Cursor-paginated own inbox | Future frontend: Notifications |
+| 55 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/read` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently mark own notification read | Future frontend: Notifications |
+| 56 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/archive` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently archive own notification | Future frontend: Notifications |
 
-**TOTAL IMPLEMENTED APIs: 51**
+| 57 | GET | `/api/v1/organizations/:organizationId/reports/invoices` | Reports | Bearer + active membership | `report.read` | Invoice register preview | Future frontend: Reports |
+| 58 | GET | `/api/v1/organizations/:organizationId/reports/payments` | Reports | Bearer + active membership | `report.read` | Recorded payment preview | Future frontend: Reports |
+| 59 | GET | `/api/v1/organizations/:organizationId/reports/expenses` | Reports | Bearer + active membership | `report.read` | Active expense preview | Future frontend: Reports |
+| 60 | GET | `/api/v1/organizations/:organizationId/reports/receivables` | Reports | Bearer + active membership | `report.read` | Canonical aging preview | Future frontend: Reports |
+| 61 | POST | `/api/v1/organizations/:organizationId/reports/exports` | Reports | Bearer + active membership | `report.export` | Durable asynchronous CSV request | Future frontend: Reports |
+| 62 | GET | `/api/v1/organizations/:organizationId/report-exports` | Reports | Bearer + active membership | `report.export` | Cursor-paginated exports | Future frontend: Reports |
+| 63 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId` | Reports | Bearer + active membership | `report.export` | Safe export metadata/state | Future frontend: Reports |
+| 64 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId/download` | Reports | Bearer + active membership | `report.export` | Authorized audited CSV stream | Future frontend: Reports |
+
+**TOTAL IMPLEMENTED APIs: 64**
 
 ---
 
@@ -544,7 +564,59 @@ write no audits/events/models/jobs. Safe errors are 400 input, 403 permission,
 FX, accrual classifications or ledger is introduced. The roadmap's Step 19 P&L
 capability is delivered under the user's explicit Prompt 18 request.
 
+### Analytics — IMPLEMENTED (Prompt 19)
+
+Rows 52-53 require analytics.read and current ACTIVE tenant membership. Summary
+accepts fromDate/toDate/asOfDate (month bounds, tenant today, max 366 inclusive
+dates). Aging accepts only asOfDate, default tenant today. No grouping/comparison
+query exists. Summary returns billing {totalInvoiced,invoiceCounts}, collections
+{collected,rate,averagePaymentDelayDays,sampleSize}, receivables {outstanding,overdue},
+spending {expenses}, cash {netCashFlow,netResult}, customers {activeCount}.
+
+Cash uses canonical period Payment/Expense totals. Billing/counts use issueDate;
+rate uses current ISSUED issue-range cohort receipts through asOf divided by its
+total (percentage string, four places, null zero denominator). Delay averages
+final eligible receipt date minus due date on fully paid cohort invoices (two
+places, null empty sample). Receivables recompute totals minus RECORDED receipts
+through asOf for all current ISSUED invoices issued by asOf, independent of range.
+DRAFT/CANCELLED/VOID claims, REVERSED receipts and VOIDED expenses do not count;
+archived customers/categories retain eligible facts. Due today is not overdue.
+
+Aging returns outstanding/overdue and five {bucket,invoiceCount,amount} entries:
+CURRENT, 1_30, 31_60, 61_90, 91_PLUS. Empty buckets are zero. Metadata states
+currency/timezone/resolved dates, CURRENT_STATE basis and KPI cohort/date definitions.
+Amounts/ratios use Decimal strings; counts are integers. One read-only repeatable-
+read transaction covers SQL aggregates and scoped customer count. No N+1, cache,
+queue, writes, schema change, historical snapshot claim, forecast, or AI is added.
+Invalid input is 400, tenant access concealed 404, permission 403, selected currency
+mismatch 422, impossible source settlement 409. See api-contracts sections 9.15-16.
+
 ## 5. Current User Workflow and APIs
+
+### Notifications — IMPLEMENTED (Prompt 20)
+
+Rows 54-56 expose the current recipient's inbox/read/archive, with current tenant
+membership and canonical notification.read/update_self. Inbox defaults to newest
+UNREAD/READ rows, limit 25 (max 100), and accepts status, after, createdAt sort and
+direction. Cursor scope includes organization/recipient/filter/direction. Commands
+accept empty bodies, return 200, preserve original timestamps and keep archive
+terminal. Other-recipient/tenant IDs are concealed 404; unknown input is 400.
+
+Internal minute scans evaluate tenant-local daily occurrences: due-soon three days
+before due, overdue days 1/8/15/etc., configurable enabled/cadence defaults. Current
+ISSUED positive source balances, active customers and active organizations are
+required; workers reload all RECORDED receipts and ignore settlement caches.
+ReminderDelivery plus PendingEvent commit atomically, and database semantic keys
+dedupe retries. In-app fan-out targets current invoice-read memberships; payment
+notifications target payment-read memberships. Read/archive writes no financial audit.
+
+The separate worker consumes supported INVOICE_ISSUED/PAYMENT_RECORDED/PAYMENT_REVERSED
+and REMINDER_DELIVERY_REQUESTED events. Dispatch is post-commit and leased; transport
+outages defer durable work, expired leases recover, and failed jobs/delivery statuses
+remain observable. External email stays disabled, with explicit non-production
+capture only. A reviewed migration corrects the notification link's tenant-composite
+FK while preserving column-specific SET NULL. No manual reminder endpoint, vendor,
+preferences, report/export, audit-read, frontend, or AI capability is added.
 
 ```text
 Register
@@ -577,31 +649,27 @@ Log out
 
 The current product flow includes organization, membership, customer, invoice,
 payment recording, full reversal, expense category management, expense/void workflows,
-and derived Cash Flow/P&L reporting.
+and derived Cash Flow/P&L/dashboard/aging reads.
 
-## 6. Future Product API Map
+## 6. Reports and Future Product API Map
 
-Every route in this section is **PLANNED — NOT IMPLEMENTED**. These are
-finalized contract routes, subject to implementation review.
+Reports below are implemented in Prompt 21. Audit Log remains planned.
 
-### Analytics — PLANNED
+### Reports — IMPLEMENTED
 
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| GET | `/api/v1/organizations/:organizationId/analytics/summary` | Dashboard financial metrics | Dashboard / Analytics |
-| GET | `/api/v1/organizations/:organizationId/analytics/receivables-aging` | Receivables aging | Analytics |
+Rows 57–64 require current ACTIVE membership and canonical report permissions.
+Previews return paginated JSON; request returns 202 PENDING metadata with an
+optional recommended idempotency key. See api-contracts.md for per-type filters,
+date bounds, CSV columns and metadata shapes. Export request/download are audited.
+Requests commit ReportExport/PendingEvent before shared post-commit dispatch;
+reports.generate reloads PostgreSQL sources and current requester access, generates
+bounded private CSV, and atomically marks READY with one REPORT_READY notification.
+Download is tenant-scoped, reauthorized, checks integrity/expiry and streams CSV
+with a safe filename. Internal keys, paths, checksums and retry markers stay private.
+Local artifacts expire after the configurable development lifetime; lazy expiry
+retains files and metadata. No cloud integration or automatic cleanup is added.
 
-### Notifications — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
-|---|---|---|---|
-| GET | `/api/v1/organizations/:organizationId/notifications` | List recipient notifications | Notifications |
-| POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/read` | Mark own notification read | Notifications |
-| POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/archive` | Archive own notification | Notifications |
-
-### Reports — PLANNED
-
-| Method | Planned Route | Purpose | Future UI |
+| Method | Implemented Route | Purpose | Future UI |
 |---|---|---|---|
 | GET | `/api/v1/organizations/:organizationId/reports/invoices` | Invoice register preview | Reports |
 | GET | `/api/v1/organizations/:organizationId/reports/payments` | Payment register preview | Reports |
@@ -624,7 +692,7 @@ finalized contract routes, subject to implementation review.
 |---|---|---|
 | Login | `POST /auth/login`, `/auth/refresh`, `/auth/logout` | Frontend not implemented |
 | Register | `POST /auth/register` | Frontend not implemented |
-| Dashboard | Implemented Cash Flow/P&L; planned analytics routes | Frontend not implemented |
+| Dashboard | Implemented Cash Flow/P&L and analytics summary | Frontend not implemented |
 | Organization Selector | `GET /organizations`, `POST /organizations` | Frontend not implemented |
 | Organization Settings | `GET/PATCH /organizations/:organizationId`, close, transfer ownership | Frontend not implemented |
 | Members | Member and invitation routes | Frontend not implemented |
@@ -636,9 +704,9 @@ finalized contract routes, subject to implementation review.
 | Expenses | Implemented expense/category routes | Frontend not implemented |
 | Cash Flow | Implemented cash-flow route | Frontend not implemented |
 | Profit & Loss | Implemented profit-loss route | Frontend not implemented |
-| Analytics | Planned analytics routes | Frontend not implemented |
-| Notifications | Planned notification routes | Frontend not implemented |
-| Reports | Planned report/export routes | Frontend not implemented |
+| Analytics | Implemented summary/receivables-aging routes | Frontend not implemented |
+| Notifications | Implemented own inbox/read/archive routes | Frontend not implemented |
+| Reports | Implemented report/export routes | Frontend not implemented |
 | Audit Logs | Planned audit-log route | Frontend not implemented |
 
 ## 8. API → Database Model Mapping
@@ -655,8 +723,9 @@ finalized contract routes, subject to implementation review.
 | Expenses | `Expense`, `ExpenseCategory`, `Organization`, `Membership`, `AuditLog` |
 | Cash Flow | `Payment`, `Expense`, `Organization`, `Membership` (read only) |
 | P&L | `Payment`, `Expense`, `ExpenseCategory`, `Organization`, `Membership` (read only) |
-| Future Notifications | `Notification`, `ReminderDelivery`, `Invoice` |
-| Future Reports | `ReportExport`, `PendingEvent`, `AuditLog` |
+| Analytics | `Invoice`, `Payment`, `Expense`, `Customer`, `Organization`, `Membership` (read only) |
+| Notifications | `Notification`, `ReminderDelivery`, `PendingEvent`, `Invoice`, `Payment`, `Customer`, `Organization`, `Membership` |
+| Reports | `ReportExport`, `PendingEvent`, `AuditLog`, `Notification`, `IdempotencyRecord` plus Financial source read models |
 | Future Audit Logs | `AuditLog` |
 
 ## 9. API → Redis / BullMQ Mapping
@@ -669,15 +738,12 @@ finalized contract routes, subject to implementation review.
 | `GET /health/ready` | Redis readiness `PING` |
 | All other implemented APIs | No direct Redis/BullMQ use |
 
-BullMQ has queue names, a queue factory, default retry/backoff configuration, and
-a smoke test. No current public API depends on a production business worker.
-
-Planned future use:
-
-- **PLANNED — NOT IMPLEMENTED:** reminder scan and delivery jobs.
-- **PLANNED — NOT IMPLEMENTED:** notification/email delivery.
-- **PLANNED — NOT IMPLEMENTED:** report generation.
-- **PLANNED — NOT IMPLEMENTED:** pending-event processing.
+BullMQ has canonical queue names, a factory and retry/backoff defaults. Prompt 20
+implements separate-worker events.dispatch/dispatch, reminders.scan/scan,
+reminders.deliver/event and notifications.email/event. Inbox APIs read/write PG
+directly; the worker creates durable notifications. Real external email is disabled;
+capture is development/test-only. Prompt 21 adds reports.generate/dispatch and
+reports.generate/event using the same dispatcher and durable PostgreSQL export state.
 
 ## 10. Deployment Architecture
 
@@ -688,7 +754,7 @@ NestJS backend API (local development only)
   ↓                         ↓
 Managed PostgreSQL      Managed Redis / BullMQ
                               ↓
-                        Separate BullMQ worker process (planned)
+                        Separate notification/report BullMQ worker process
 ```
 
 | Component | Deployment Target Type | Notes |
@@ -697,7 +763,7 @@ Managed PostgreSQL      Managed Redis / BullMQ
 | Backend API | Long-running Node/NestJS service | Must support environment variables plus PostgreSQL and Redis connectivity; Render, Railway, Fly.io, AWS, or similar platforms are candidates |
 | PostgreSQL | Managed PostgreSQL | Source of truth for product and session data |
 | Redis | Managed Redis | Supports rate limits and BullMQ infrastructure; not financial truth |
-| BullMQ Worker | Separate long-running worker process | Deploy when business workers exist |
+| BullMQ Worker | Separate long-running worker process | Implemented locally; not deployed |
 
 Vercel should not be assumed to host the full long-running NestJS plus BullMQ
 worker architecture. No production deployment has occurred.
@@ -731,8 +797,9 @@ worker architecture. No production deployment has occurred.
 - Invoice collection/detail/update/delete/issue/cancel/void routes.
 - Payment record/list/detail/reversal routes.
 - Expense category collection/update/archive and Expense collection/detail/update/void routes.
-- Cash Flow and P&L aggregate routes.
-- All planned analytics, notification,
+- Cash Flow, P&L, summary and aging aggregate routes.
+- Own notification inbox/read/archive routes.
+- All planned
   report, and audit routes.
 
 Tenant protection means access authentication, an ACTIVE membership in the
@@ -784,14 +851,19 @@ permission for an active member is `403`.
 | `POST /organizations/:organizationId/expenses/:expenseId/void` | `expense.void` |
 | `GET /organizations/:organizationId/cash-flow` | `analytics.read` |
 | `GET /organizations/:organizationId/profit-loss` | `analytics.read` |
+| `GET /organizations/:organizationId/analytics/summary` | `analytics.read` |
+| `GET /organizations/:organizationId/analytics/receivables-aging` | `analytics.read` |
+| `GET /organizations/:organizationId/notifications` | `notification.read` |
+| `POST /organizations/:organizationId/notifications/:notificationId/read` | `notification.update_self` |
+| `POST /organizations/:organizationId/notifications/:notificationId/archive` | `notification.update_self` |
+| `GET /organizations/:organizationId/reports/invoices`, `/reports/payments`, `/reports/expenses`, `/reports/receivables` | `report.read` |
+| `POST /organizations/:organizationId/reports/exports` | `report.export` |
+| `GET /organizations/:organizationId/report-exports[/:exportId[/download]]` | `report.export` |
 
 ### Planned Permission Map — NOT IMPLEMENTED
 
 | Planned API area | Required Permission |
 |---|---|
-| Analytics | `analytics.read` |
-| Reports and exports | `report.read`, `report.export` |
-| Notifications | `notification.read`, `notification.update_self` |
 | Audit Logs | `audit.read` |
 
 ## 13. API Status Legend
@@ -812,13 +884,13 @@ permission for an active member is `403`.
 - Optional Invoice notes/terms/reference and recommended invoice idempotency replay are deferred.
 - Optional Payment reference/notes/reference search await schema support.
 - Expense request idempotency and the two documented performance indexes are deferred.
-- Broader analytics, notification, report,
-  and audit-read APIs are not implemented.
+- Historical analytics reconstruction and audit-read APIs are not implemented.
+- Report storage is local/private; cloud deployment and file retention cleanup remain deferred.
 - There is no AuditLog read API.
 - Swagger/OpenAPI is deferred to Prompt 27.
 - A React frontend is absent.
-- The backend is not deployed; only local Compose infrastructure exists.
-- BullMQ has no production business worker or public API dependency.
+- The backend is not deployed; infrastructure remains local development.
+- Notification workers are local only; real email/provider consent and operational recovery tooling remain deferred.
 
 ## 15. Update Rules
 
@@ -839,10 +911,10 @@ Do not manually increase the API count without verifying controllers.
 
 ## 16. Final Dashboard
 
-- Current implemented APIs: **51**
-- Estimated final APIs: **60–70**
-- Implemented modules: **10 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L
-- Financial APIs implemented: **23**
+- Current implemented APIs: **64**
+- Estimated final APIs: **65–70**
+- Implemented modules: **13 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L, Analytics, Notifications, Reports
+- Financial/report APIs implemented: **33**
 - Frontend implemented: **No**
 - Backend deployed: **No**
-- Next feature: **Analytics, pending a separate request**
+- Next feature: **Audit Log API, pending a separate request**

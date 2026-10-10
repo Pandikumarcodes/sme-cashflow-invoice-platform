@@ -408,5 +408,30 @@ unimplemented; no Prompt 18 work is included in this milestone.
 The explicit Prompt 18 request implements simplified cash-basis P&L, otherwise
 listed at roadmap Step 19. It extends FinancialModule's narrow read contracts and
 reuses Cash Flow source calculations. This does not complete broader accounting
-or financial-engine consolidation. Analytics and every subsequent feature remain
-deferred; no user Prompt 19 work is included.
+or financial-engine consolidation. At that milestone, Analytics and subsequent
+features were deferred; the Prompt 19 delivery is recorded below.
+
+## Prompt 19 implementation sequencing note
+
+The explicit Prompt 19 request delivers summary and receivables-aging analytics,
+otherwise listed at Step 20. Canonical period cash totals remain shared with Cash
+Flow/P&L; cohort, delay, source-derived balances and aging are read-time aggregates.
+Current-state business-date as-of semantics are explicit; historical timestamp
+reconstruction and comparisons are deferred. No user Prompt 20 work is included.
+
+## Prompt 20 implementation sequencing note
+
+The explicit Prompt 20 request combines the minimum durable-event/worker foundation
+needed by Notifications with the reminder capability listed at Steps 21-22. It adds
+recipient inbox APIs, due/overdue occurrences, supported source-event consumption,
+scoped delivery rechecks and provider-gated capture. Reports/export handlers were
+deferred at that milestone; Prompt 21 delivery is recorded below.
+
+## Prompt 21 implementation sequencing note
+
+The explicit Prompt 21 request delivers Step 23's eight report/export routes and
+six CSV types. Financial source contracts, durable PendingEvent dispatch and
+separate owning report workers are reused. Private local artifacts, bounded
+generation, authorized/audited downloads and lazy expiry use the existing schema.
+Object storage deployment, file retention cleanup, PDF, Audit Log APIs, frontend,
+AI and user Prompt 22 remain deferred. See reports-implementation.md for decisions.

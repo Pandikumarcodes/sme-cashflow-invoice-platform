@@ -1,6 +1,6 @@
 # SME Cash Flow & Invoice Management System
 
-Backend-first, multi-tenant cash-flow and invoice management platform. The JavaScript backend is a NestJS modular monolith. PostgreSQL/Prisma, Redis/BullMQ infrastructure, authentication, organizations, memberships, reusable RBAC, trusted tenant infrastructure, Customers, Invoices, Payments/reversals, Expenses, Cash Flow, and simplified cash-basis P&L are established. Later analytics and business workers remain deferred.
+Backend-first, multi-tenant cash-flow and invoice management platform. The JavaScript backend is a NestJS modular monolith. PostgreSQL/Prisma, Redis/BullMQ infrastructure, authentication, organizations, memberships, reusable RBAC, trusted tenant infrastructure, Customers, Invoices, Payments/reversals, Expenses, Cash Flow, and simplified cash-basis P&L are established. Financial summary, receivables aging, notification inbox APIs and reminder workers are implemented; external email remains provider-gated.
 
 ## Cash Flow
 
@@ -28,6 +28,19 @@ authoritative, with the same reversal/void interpretation as Cash Flow. Archived
 categories retain active expense totals. All aggregates share a read-only
 repeatable-read PostgreSQL transaction; no schema change, write model, audit,
 queue, cache, or advanced accounting system is introduced.
+
+## Financial analytics
+
+Prompt 19 exposes tenant-protected GET analytics/summary (fromDate/toDate/asOfDate)
+and analytics/receivables-aging (asOfDate) under the organization prefix, requiring
+analytics.read. Summary combines issued billing/counts, period cash/spending, cohort
+collection rate/final-payment delay, receivables and current active customers.
+Aging groups source-derived positive balances into current, 1-30, 31-60, 61-90 and
+91+ overdue days. Month/tenant-today defaults and 366-date ranges apply. Metadata
+states CURRENT_STATE and date/cohort definitions; no historical timestamp snapshot
+is claimed. Decimal amounts/ratios and one read-only repeatable-read PostgreSQL
+transaction preserve Cash Flow/P&L semantics. No schema, cache, queue, writes,
+forecasts or AI is introduced. See docs/api-contracts.md sections 9.15-16.
 
 ## Prerequisites
 
@@ -160,11 +173,34 @@ Tests set `NODE_ENV=test` explicitly. Database integration tests use Prisma Deci
 
 ## Redis and BullMQ
 
-Redis is currently used only for BullMQ connectivity and readiness; there is no application caching, distributed locking, or Redis-backed idempotency. The Compose service enables append-only persistence and a named volume so local queued work survives ordinary container restarts. PostgreSQL remains authoritative.
+Redis supports rate limiting, BullMQ delivery and readiness; there is no application caching or Redis-backed business idempotency. The Compose service enables append-only persistence and a named volume so local queued work survives ordinary container restarts. PostgreSQL remains authoritative.
 
-Queue names and conservative default job options are centralized under `src/infrastructure/queues`. BullMQ creates the connections required by each future Queue, Worker, or QueueEvents instance rather than sharing the readiness client. No business queues, processors, or worker process are registered yet.
+Queue names and conservative default job options are centralized under `src/infrastructure/queues`. BullMQ creates connections for each Queue/Worker rather than sharing the readiness client. Prompt 20 registers supported-event dispatch, tenant-local reminder scanning, in-app delivery and provider-gated email in a separate worker process.
 
-Run `npm run test:queues` with local Redis available to exercise a uniquely prefixed infrastructure-only queue, enqueue and consume one trivial job, clean its keys, and verify connection shutdown. Future tenant jobs carry IDs and correlation metadata, validate payloads, and reload authoritative tenant-scoped state from PostgreSQL; they never carry authoritative financial snapshots or mutate financial truth independently.
+Run `npm run test:queues` with local Redis and the guarded local sme_cashflow_test database available. It exercises infrastructure smoke jobs and real notification dispatch/retry/durable outcomes under unique prefixes, then cleans its own queues. Tenant jobs validate IDs and reload PostgreSQL state; they carry no financial snapshots or independent financial mutation authority. Run PostgreSQL, E2E and notification queue suites sequentially because they share the test database.
+
+### Notifications and reminders (Prompt 20)
+
+GET /api/v1/organizations/:organizationId/notifications lists the current recipient's
+UNREAD/READ inbox by createdAt/id descending with limit/after pagination and optional
+status/sort direction. POST /:notificationId/read and /archive accept empty bodies,
+preserve first transition timestamps and never resurrect archived rows. Canonical
+notification.read/update_self and current ACTIVE membership apply to all three.
+
+Start the separate worker with npm run start:worker after applying reviewed migrations.
+The API itself starts no background processors. REMINDERS_ENABLED (true),
+REMINDERS_DAYS_BEFORE_DUE (3) and REMINDERS_OVERDUE_CADENCE_DAYS (7) control tenant-local
+occurrences. Invoice-read recipients get due/overdue reminders; payment-read recipients
+get recorded-payment notifications. Current receipts determine eligibility, including
+reversals; paid/non-issued/archived-customer/stale work is suppressed. Database semantic
+keys prevent duplicate occurrences and inbox fan-out. Durable PendingEvents recover
+post-commit dispatch across broker outages/expired leases; delivery retries are bounded.
+
+EMAIL_PROVIDER defaults to disabled. Optional capture is non-production, never contacts
+customers, and does not establish a reviewed consent/provider integration. No vendor,
+manual-send route, Reports, Audit Log API, frontend or AI is included. See api-contracts,
+domain-rules and backend-architecture for lifecycle and retry details. The focused
+tenant-composite notification FK migration preserves organization scope on link deletion.
 
 ## Customers
 
@@ -282,8 +318,29 @@ and `test/payments.e2e-spec.js`; run the existing unit/integration/E2E commands.
 
 The authoritative planning documents are in [`docs/`](docs/). Repository-specific implementation rules are summarized in [`AGENTS.md`](AGENTS.md).
 
-Current exclusions are intentional: broader analytics, reporting, business workers,
+Current exclusions are intentional: historical analytics reconstruction, external email,
 Swagger, and the frontend have not started.
+
+## Reports / Export
+
+Prompt 21 implements four report previews and four export routes (64 HTTP APIs).
+Six CSV types cover invoices, payments, expenses, receivables aging, cash flow and
+simplified cash-basis performance. Requests commit export/audit/PendingEvent before
+the shared dispatcher hands work to reports.generate in the separate worker.
+Run `npm run start:worker` for notifications and reports; the API starts no workers.
+
+`REPORT_STORAGE_DIRECTORY` defaults to git-ignored `.private/reports`; local API
+and worker must share the private directory. `REPORT_EXPIRY_HOURS` defaults to 24
+from completion (1–168). Output is bounded to 10,000 data rows/10 MiB, UTF-8 CSV
+with precise money and spreadsheet formula protection. Download requires current
+membership/report.export, returns private CSV, and is audited. Expired metadata and
+files remain retained; no cloud provider or cleanup scheduler is added.
+
+See [report contracts](docs/api-contracts.md#reports-and-exports) and
+[implementation decisions](docs/reports-implementation.md). Run unit, PostgreSQL,
+E2E and real Redis queue checks with the existing scripts, keeping the last three
+sequential because they share guarded `sme_cashflow_test`. The integration runner
+now forwards Jest arguments for focused tests.
 
 ## Expense categories and expenses
 

@@ -372,7 +372,20 @@ Categories are a table, not enum/free text, to support controlled tenant customi
 
 Notification is durable in-app state, not BullMQ metadata. Unique notification dedup key and reminder `(organizationId,invoiceId,reminderType,effectiveDate,channel)`. Inbox index `(organizationId,recipientUserId,status,createdAt,id)`. Notifications/reminders may hard-delete after bounded retention; financial/audit records remain.
 
+Prompt 20 activates these existing models. A focused reviewed migration corrects
+the previous single-column reminder notification FK to (organizationId,notificationId)
+-> Notification(organizationId,id). PostgreSQL ON DELETE SET NULL(notificationId)
+preserves the required organizationId; Prisma cannot express that column subset and
+warns on its conceptual SetNull mapping. No speculative columns/enums are added.
+In-app fan-out uses recipient dedupe keys and leaves the optional singular link null.
+
 ### 4.12 ReportExport, IdempotencyRecord, and PendingEvent
+
+Prompt 21 uses the existing schema unchanged: ReportExport PENDING/RUNNING/READY/
+FAILED/EXPIRED is authoritative. A REPORT_EXPORT_REQUESTED event and request audit
+share creation's transaction. READY metadata, event acknowledgment and requester
+REPORT_READY notification share completion's transaction. See reports-implementation.md
+for claim ownership, private attempt markers, storage and lazy expiry semantics.
 
 | Entity.field | Purpose | Type | Required/default | Rules |
 |---|---|---|---|---|

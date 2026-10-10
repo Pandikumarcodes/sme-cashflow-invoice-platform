@@ -27,6 +27,7 @@ const result = spawnSync(
     '--config',
     'jest.integration.config.cjs',
     '--runInBand',
+    ...process.argv.slice(2),
   ],
   { env: process.env, stdio: 'inherit' },
 );

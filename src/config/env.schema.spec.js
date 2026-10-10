@@ -5,6 +5,46 @@ const authKeys = {
   AUTH_ACCESS_PUBLIC_KEY_BASE64: 'MCowBQYDK2VwAyEABdqDMyeA8N8yOW/It/UtBCMURg8cJkEWDd0PiBwYeUw=',
 };
 describe('environment configuration', () => {
+  it('bounds report expiry and requires a private storage directory setting', () => {
+    for (const values of [
+      { REPORT_EXPIRY_HOURS: '0' },
+      { REPORT_EXPIRY_HOURS: '169' },
+      { REPORT_STORAGE_DIRECTORY: ' ' },
+    ]) {
+      expect(() =>
+        parseEnvironment({
+          DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
+          ...authKeys,
+          ...values,
+        }),
+      ).toThrow();
+    }
+  });
+  it('bounds reminder policy and worker configuration', () => {
+    for (const values of [
+      { REMINDERS_ENABLED: 'yes' },
+      { REMINDERS_DAYS_BEFORE_DUE: '31' },
+      { REMINDERS_OVERDUE_CADENCE_DAYS: '0' },
+      { WORKER_CONCURRENCY: '0' },
+    ])
+      expect(() =>
+        parseEnvironment({
+          DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
+          ...authKeys,
+          ...values,
+        }),
+      ).toThrow();
+  });
+  it('rejects development capture as a production email provider', () => {
+    expect(() =>
+      parseEnvironment({
+        DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
+        ...authKeys,
+        NODE_ENV: 'production',
+        EMAIL_PROVIDER: 'capture',
+      }),
+    ).toThrow('Capture email provider');
+  });
   it('applies safe local defaults', () => {
     const result = parseEnvironment({
       DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',

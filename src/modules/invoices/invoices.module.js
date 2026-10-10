@@ -6,11 +6,12 @@ import { InvoicesController } from './invoices.controller.js';
 import { InvoicesService } from './application/invoices.service.js';
 import { InvoicePersistence } from './infrastructure/invoice-persistence.js';
 import { InvoiceSettlement } from './application/invoice-settlement.js';
+import { InvoiceReminderReader } from './application/invoice-reminder-reader.js';
 
 @Module({
   imports: [AuthModule, CustomersModule, OrganizationsModule],
   controllers: [InvoicesController],
-  providers: [InvoicesService, InvoicePersistence, InvoiceSettlement],
-  exports: [InvoiceSettlement],
+  providers: [InvoicesService, InvoicePersistence, InvoiceSettlement, InvoiceReminderReader],
+  exports: [InvoiceSettlement, InvoiceReminderReader],
 })
 export class InvoicesModule {}

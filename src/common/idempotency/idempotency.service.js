@@ -5,7 +5,7 @@ import { ERROR_CODES } from '../errors/error-codes.js';
 import { requireTenantContext } from '../tenancy/tenant-context.js';
 import { tenantResourceWhere, tenantWhere } from '../../database/helpers/tenant-query.js';
 
-const OPERATIONS = new Set(['payment.record', 'payment.reverse']);
+const OPERATIONS = new Set(['payment.record', 'payment.reverse', 'report.export']);
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function validateIdempotencyKey(key) {
@@ -62,7 +62,7 @@ export class IdempotencyService {
     return { record, replayed: record.id !== id };
   }
 
-  complete(client, tenant, record, resourceId, httpStatus) {
+  complete(client, tenant, record, resourceId, httpStatus, resourceType = 'Payment') {
     requireTenantContext(tenant);
     return client.idempotencyRecord.update({
       where: {
@@ -70,7 +70,7 @@ export class IdempotencyService {
         userId: tenant.userId,
         status: 'PROCESSING',
       },
-      data: { status: 'COMPLETED', resourceType: 'Payment', resourceId, httpStatus },
+      data: { status: 'COMPLETED', resourceType, resourceId, httpStatus },
     });
   }
 }

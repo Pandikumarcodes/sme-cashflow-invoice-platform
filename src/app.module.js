@@ -16,7 +16,10 @@ import { InvoicesModule } from './modules/invoices/invoices.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
 import { ExpensesModule } from './modules/expenses/expenses.module.js';
 import { CashFlowModule } from './modules/cash-flow/cash-flow.module.js';
+import { AnalyticsModule } from './modules/analytics/analytics.module.js';
 import { ProfitLossModule } from './modules/profit-loss/profit-loss.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { ReportsModule } from './modules/reports/reports.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 
 @Module({
@@ -37,6 +40,9 @@ import { ObservabilityModule } from './observability/observability.module.js';
     ExpensesModule,
     CashFlowModule,
     ProfitLossModule,
+    AnalyticsModule,
+    NotificationsModule,
+    ReportsModule,
     HealthModule,
   ],
 })

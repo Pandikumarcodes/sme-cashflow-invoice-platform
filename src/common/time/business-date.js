@@ -9,3 +9,14 @@ export function businessDate(value) {
     throw new ApplicationError(ERROR_CODES.INVALID_REQUEST, 'Date is not a valid calendar date.');
   return date;
 }
+
+export function localDate(timezone, now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const field = (type) => parts.find((part) => part.type === type).value;
+  return `${field('year')}-${field('month')}-${field('day')}`;
+}

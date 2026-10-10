@@ -43,6 +43,13 @@ export const environmentSchema = z.object({
     .string()
     .regex(/^[a-z0-9][a-z0-9:_-]*$/, 'QUEUE_PREFIX must be a safe lowercase namespace')
     .default('sme'),
+  REMINDERS_ENABLED: booleanString.default(true),
+  REMINDERS_DAYS_BEFORE_DUE: z.coerce.number().int().min(0).max(30).default(3),
+  REMINDERS_OVERDUE_CADENCE_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+  EMAIL_PROVIDER: z.enum(['disabled', 'capture']).default('disabled'),
+  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(2),
+  REPORT_STORAGE_DIRECTORY: z.string().trim().min(1).default('.private/reports'),
+  REPORT_EXPIRY_HOURS: z.coerce.number().int().min(1).max(168).default(24),
   AUTH_ACCESS_PRIVATE_KEY_BASE64: z.string().min(40),
   AUTH_ACCESS_PUBLIC_KEY_BASE64: z.string().min(40),
   AUTH_ACCESS_TOKEN_LIFETIME_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
@@ -64,7 +71,10 @@ export const environmentSchema = z.object({
   AUTH_REFRESH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(30),
 });
 export function parseEnvironment(environment) {
-  return environmentSchema.parse(environment);
+  const parsed = environmentSchema.parse(environment);
+  if (parsed.NODE_ENV === 'production' && parsed.EMAIL_PROVIDER === 'capture')
+    throw new Error('Capture email provider is limited to development and tests.');
+  return parsed;
 }
 export function validateEnvironment(environment) {
   return { ...environment, ...parseEnvironment(environment) };

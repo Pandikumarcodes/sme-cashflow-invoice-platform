@@ -535,3 +535,71 @@ categories. Both queries share the service's transaction client and snapshot.
 Financial domain code owns allowed none/month options and simplified cash-basis
 response/disclosure mapping. No source mutation contract, new persistence model,
 locking, audit/event side effect, queue, cache, or accounting framework is added.
+
+## Prompt 19 Analytics read boundary
+
+AnalyticsModule imports AuthModule and FinancialModule. Controllers validate
+summary/aging query DTOs and call one use case. The service reauthorizes current
+membership from branded tenant scope and owns a READ ONLY RepeatableRead transaction.
+FinancialModule exports AnalyticsReader, reusing CashFlowReader for cash and a
+parameterized tenant-scoped invoice/receipt CTE for cohort and aging aggregates.
+No invoice/customer facts are loaded individually, no per-invoice queries are made,
+and the reader does not trust mutable settlement caches or take write locks.
+Customer count uses the same transaction client and trusted tenant query helper.
+The existing localDate utility is shared under common/time and remains re-exported
+from invoice-policy, preserving existing Invoice behavior. No schema change,
+financial write, PendingEvent, queue, cache, or analytics snapshot is introduced.
+
+## Prompt 20 Notifications and worker boundary
+
+NotificationsModule owns thin inbox controllers, recipient state use cases,
+reminder planning/delivery and the provider port. It imports the narrow
+InvoiceReminderReader contract exported by InvoicesModule; source financial services
+are unchanged. The reader fences Invoice/Customer/Payment by tenant and recomputes
+current receipts. Workers do not update invoice/payment/expense truth or caches.
+
+NotificationWorkerModule participates in the separate Nest WorkerModule application context (src/worker.js),
+started with npm run start:worker. API bootstrap registers no processors/schedulers.
+Worker startup checks PostgreSQL and Redis; shutdown closes workers before queues.
+Four existing canonical queues are operational: events.dispatch/dispatch (5-second
+poll), reminders.scan/scan (minute tick for tenant-local daily eligibility),
+reminders.deliver/event, notifications.email/event. Payloads contain version plus
+durable event/organization IDs, never amounts, roles or communication snapshots.
+
+Queue infrastructure owns PendingEventDispatcher. It claims up to 50 supported
+committed events with SKIP LOCKED and a 60-second lease, then publishes outside the
+transaction. Consumers validate event/source identity and atomically acknowledge
+PROCESSED with durable effects. Unknown future events remain untouched. Transport
+outages release work to PENDING with a 30-second delay; expired leases recover even
+after Redis loss. Dispatch attemptCount is an operational generation, distinct from
+the three-attempt business-delivery limit. Jobs use generation-specific durable IDs,
+three exponential retries with jitter, and database/provider semantic dedupe.
+Final worker failures persist FAILED; failed jobs remain retained and safe worker
+errors are observable. No public retry dashboard or generalized workflow is added.
+
+Email is provider-gated with an explicit non-production capture adapter. An email
+attempt holds a durable in-progress event lease, releases the transaction, calls the
+adapter with a ten-second timeout and stable delivery key, then persists outcome in
+a new transaction. Future providers must guarantee idempotency across ambiguous
+timeouts. Operational global scans discover bounded organization/event pages;
+every tenant-owned resource read/write remains explicitly scoped.
+
+## Prompt 21 Reports and export boundary
+
+ReportsModule owns eight preview/export/status/download routes and ReportExport
+lifecycle. It consumes FinancialModule's narrow ReportReader, sharing invoiceFacts
+with Analytics and delegating cash/performance/aging to canonical readers.
+Report creation, audit and REPORT_EXPORT_REQUESTED event commit atomically.
+ReportWorkerModule reuses PendingEventDispatcher on reports.generate; WorkerModule
+composes it with NotificationWorkerModule and required global request context.
+The HTTP application starts neither processor nor scheduler.
+
+Generation reads source facts in read-only RepeatableRead, performs private local
+file I/O outside transactions, and commits READY metadata/event acknowledgment plus
+one requester notification through Notifications' exported ReportReadyNotifier.
+Event/export locks have a consistent order; claim tokens protect delayed workers
+and three durable generation attempts bound retries. Download reauthorizes current
+scope and audits artifact release. See reports-implementation.md and api-contracts.md
+for size limits, opaque storage keys, expiry defaults and failure handling. No
+schema changes, external storage, financial mutations or second queue framework
+are introduced.

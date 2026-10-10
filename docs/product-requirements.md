@@ -321,6 +321,13 @@ MVP reports:
 
 CSV is first because it is auditable, portable, and simpler than layout-sensitive PDF. Small results stream synchronously with safe CSV escaping; large exports create a tenant-scoped `ReportExport`, run in BullMQ, write to private object storage in a later deployment integration, and return a short-lived authorized download. Every request rechecks export organization and permission. PDF is later.
 
+Prompt 21 follows the finalized API contract: small preview routes return paginated
+JSON and every requested CSV export is asynchronous, with an authorized streamed
+download after completion. Private local development storage is implemented;
+object storage remains a later deployment integration. Limits and the configurable
+24-hour development lifetime are documented in api-contracts.md. No cleanup schedule
+or production retention period is selected.
+
 ## 14. Audit requirements
 
 Audit organization settings/lifecycle, membership invitation/status/role and ownership changes, customer archival, invoice create/update/issue/cancel/void, payment record/reversal, expense create/update/void, report export, authentication security events, and permission-sensitive operations.
@@ -426,6 +433,11 @@ Each entry records organization (nullable only for global auth events), actor us
 9. CSV precedes PDF; email reminders may be provider-gated.
 10. Historical “as-of” receivables are based on immutable event timestamps/status history retained by payments and reversals.
 
+Prompt 19 clarification: MVP analytics follows the explicitly requested current-
+state correction semantics. asOfDate is a business-date cutoff for currently
+eligible invoice/payment facts. Historical timestamp/status reconstruction in
+assumption 10 remains a future capability, not an MVP historical-report claim.
+
 ## 20. Unresolved product decisions
 
 - Jurisdictions and exact tax display/legal invoice requirements.
@@ -435,6 +447,9 @@ Each entry records organization (nullable only for global auth events), actor us
 - Invitation/email verification inclusion before portfolio demo versus before public launch.
 - Retention periods, data export/deletion process, and applicable privacy law.
 - Reminder recipients, consent, cadence, quiet hours, and email provider.
+- Prompt 20 MVP defaults resolve in-app recipients to current invoice-read members
+  and use deployment-configured 3-day due-soon/7-day overdue cadence; real customer
+  email consent, quiet hours and vendor selection remain deferred and gated off.
 - Limits by subscription plan, maximum amounts, rows, file size, and report span.
 - Whether Members may issue invoices; baseline says yes, but this should be confirmed.
 - Whether Viewer may see all financial analytics; baseline says yes.

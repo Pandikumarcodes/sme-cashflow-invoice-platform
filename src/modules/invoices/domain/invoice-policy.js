@@ -1,8 +1,8 @@
 import { ApplicationError } from '../../../common/errors/application-error.js';
 import { ERROR_CODES } from '../../../common/errors/error-codes.js';
 
-import { businessDate } from '../../../common/time/business-date.js';
-export { businessDate } from '../../../common/time/business-date.js';
+import { businessDate, localDate } from '../../../common/time/business-date.js';
+export { businessDate, localDate } from '../../../common/time/business-date.js';
 
 export function invoiceDates(issueDate, dueDate) {
   const issue = businessDate(issueDate);
@@ -23,17 +23,6 @@ export function assertDraft(invoice, version, issue = false) {
       ERROR_CODES.CONCURRENT_MODIFICATION,
       'Invoice version does not match.',
     );
-}
-
-export function localDate(timezone, now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(now);
-  const field = (type) => parts.find((part) => part.type === type).value;
-  return `${field('year')}-${field('month')}-${field('day')}`;
 }
 
 export function settlementState(invoice, timezone, now) {
