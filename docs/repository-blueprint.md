@@ -560,6 +560,12 @@ Metrics are introduced incrementally for request errors/latency, DB latency/pool
 
 `AuditLogsModule` owns persistence and read API. It exports a narrow `AuditAppender` accepting safe structured facts plus the current root/transaction client. Application services explicitly decide the action, target, actor/context, allowlisted changed fields, and safe before/after metadata. There is no magical Prisma middleware audit because it cannot express business intent reliably and risks secrets or noisy row-level events.
 
+Prompt 22 implements the read API in `src/modules/audit-logs/`. Existing completed
+modules retain their explicit transaction-scoped audit writers. The conceptual
+`AuditAppender` above is not introduced or used to redesign those writers in this
+read-only milestone. AuditLogsService owns a read-only transaction and exports no
+persistence mutation contract; controllers only validate and delegate.
+
 These commit atomically with the successful mutation:
 
 - invoice issue/cancel/void and draft mutations;
@@ -874,6 +880,12 @@ Prompt 5 must not create Prisma, `schema.prisma`, migrations, PostgreSQL/Redis C
 Gate A after Prompt 5: a human reviews the tree against this blueprint, strict compiler/lint configuration, config fail-fast behavior, error/request-ID shape, log redaction, bootstrap order, test commands, and confirms no domain/infrastructure scope leaked in.
 
 ## 37. Future implementation prompt sequence
+
+The list below preserves the original planning sequence. Explicit user requests
+have since delivered Notifications in Prompt 20, Reports in Prompt 21, and the
+Audit Log read API in Prompt 22. User Prompt 23 is the next separately requested
+hardening milestone and has not started; the older numbers below do not expand
+the scope of Prompt 22.
 
 Each item is a separate bounded prompt and stops after its tests/review:
 

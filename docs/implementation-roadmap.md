@@ -253,6 +253,14 @@ The required high-level sequence is retained below. Four engineering adjustments
 
 ### Step 24: Audit logs
 
+Prompt 22 completes the bounded read API slice: one `audit.read` list, trusted
+tenant scope, deterministic timestamp/ID cursors, documented filters, safe
+read-time metadata projection, and unit/PostgreSQL/HTTP isolation and immutability
+coverage. Existing writers, indexes, receipts and append-only trigger are retained;
+no migration is required. The broader action catalog, deployment grants,
+retention jobs and operational hardening below remain later work. Prompt 23 has
+not been started.
+
 - **Objective:** complete tenant audit search/read, immutability, redaction, and retention after the early append writer has covered prior mutations.
 - **Dependencies:** all action vocabulary and audit writer.
 - **Deliverables:** canonical action catalog, tenant-scoped query API, indexes, permission, redaction allowlists, database grants/retention job, worker/system attribution.
@@ -433,5 +441,6 @@ The explicit Prompt 21 request delivers Step 23's eight report/export routes and
 six CSV types. Financial source contracts, durable PendingEvent dispatch and
 separate owning report workers are reused. Private local artifacts, bounded
 generation, authorized/audited downloads and lazy expiry use the existing schema.
-Object storage deployment, file retention cleanup, PDF, Audit Log APIs, frontend,
-AI and user Prompt 22 remain deferred. See reports-implementation.md for decisions.
+Object storage deployment, file retention cleanup, PDF, frontend and AI remain
+deferred. Audit Log APIs were deferred at that milestone and are now delivered in
+Prompt 22's bounded read slice above. See reports-implementation.md for Prompt 21 decisions.

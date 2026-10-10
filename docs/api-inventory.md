@@ -6,12 +6,12 @@ verified against controllers in `src/`; planned routes come from
 
 ## 1. API Summary
 
-- Current implemented APIs: **64**
+- Current implemented APIs: **65**
 - Estimated final APIs: **65–70**
-- Estimated remaining APIs: **1–6**
-- Current milestone: **Prompt 21 Reports / Export**
-- Verification: Prompt 21 passes 44 unit suites/290 tests, 14 PostgreSQL suites/128
-  tests, 13 E2E suites/69 tests, 3 queue suites/8 tests, and a 213-file build.
+- Estimated remaining APIs: **0–5**
+- Current milestone: **Prompt 22 Audit Log APIs**
+- Verification: Prompt 22 passes 45 unit suites/297 tests, 15 PostgreSQL suites/134
+  tests, 14 E2E suites/74 tests, 3 queue suites/8 tests, and a 220-file build.
   Formatting, lint, Prisma validation and diff checks pass.
 - Base path: `/api/v1`
 - Authentication: Bearer access token plus HttpOnly refresh cookie
@@ -31,6 +31,7 @@ Prompt 18 adds **one Profit & Loss API**, bringing the count to **51**.
 Prompt 19 adds **two Financial Analytics APIs**, bringing the current count to **53**.
 Prompt 20 adds **three Notification APIs**, bringing the current count to **56**.
 Prompt 21 adds **eight Report/Export APIs**, bringing the current count to **64**.
+Prompt 22 adds **one Audit Log API**, bringing the current count to **65**.
 
 ---
 
@@ -51,8 +52,8 @@ Prompt 21 adds **eight Report/Export APIs**, bringing the current count to **64*
 | Analytics | 2 | 0 | IMPLEMENTED |
 | Notifications | 3 | 0 | IMPLEMENTED |
 | Reports | 8 | 0 | IMPLEMENTED |
-| Audit Logs | 0 | 1 | PLANNED — NOT IMPLEMENTED |
-| **Total** | **64** | **1** | **Estimated final baseline: 65** |
+| Audit Logs | 1 | 0 | IMPLEMENTED |
+| **Total** | **65** | **0** | **Current contract baseline: 65** |
 
 The final range allows for planned API consolidation or additions. A planned
 count does not indicate that a database model or service exists.
@@ -119,7 +120,6 @@ count does not indicate that a database model or service exists.
 | 54 | GET | `/api/v1/organizations/:organizationId/notifications` | Notifications | Bearer + active membership + recipient | `notification.read` | Cursor-paginated own inbox | Future frontend: Notifications |
 | 55 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/read` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently mark own notification read | Future frontend: Notifications |
 | 56 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/archive` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently archive own notification | Future frontend: Notifications |
-
 | 57 | GET | `/api/v1/organizations/:organizationId/reports/invoices` | Reports | Bearer + active membership | `report.read` | Invoice register preview | Future frontend: Reports |
 | 58 | GET | `/api/v1/organizations/:organizationId/reports/payments` | Reports | Bearer + active membership | `report.read` | Recorded payment preview | Future frontend: Reports |
 | 59 | GET | `/api/v1/organizations/:organizationId/reports/expenses` | Reports | Bearer + active membership | `report.read` | Active expense preview | Future frontend: Reports |
@@ -128,8 +128,9 @@ count does not indicate that a database model or service exists.
 | 62 | GET | `/api/v1/organizations/:organizationId/report-exports` | Reports | Bearer + active membership | `report.export` | Cursor-paginated exports | Future frontend: Reports |
 | 63 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId` | Reports | Bearer + active membership | `report.export` | Safe export metadata/state | Future frontend: Reports |
 | 64 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId/download` | Reports | Bearer + active membership | `report.export` | Authorized audited CSV stream | Future frontend: Reports |
+| 65 | GET | `/api/v1/organizations/:organizationId/audit-logs` | Audit Logs | Bearer + active membership | `audit.read` | Cursor-paginated immutable tenant history | Future frontend: Audit Logs |
 
-**TOTAL IMPLEMENTED APIs: 64**
+**TOTAL IMPLEMENTED APIs: 65**
 
 ---
 
@@ -653,7 +654,7 @@ and derived Cash Flow/P&L/dashboard/aging reads.
 
 ## 6. Reports and Future Product API Map
 
-Reports below are implemented in Prompt 21. Audit Log remains planned.
+Reports below are implemented in Prompt 21. Audit Log is implemented in Prompt 22.
 
 ### Reports — IMPLEMENTED
 
@@ -680,11 +681,23 @@ retains files and metadata. No cloud integration or automatic cleanup is added.
 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId` | Get export state | Reports |
 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId/download` | Download ready export | Reports |
 
-### Audit Logs — PLANNED
+### Audit Logs — IMPLEMENTED
 
-| Method | Planned Route | Purpose | Future UI |
+| Method | Implemented Route | Purpose | Future UI |
 |---|---|---|---|
 | GET | `/api/v1/organizations/:organizationId/audit-logs` | Search scoped immutable history | Audit Logs |
+
+Permission: `audit.read`. Query parameters are `limit`, `after`,
+`sortBy=occurredAt`, `sortOrder=asc|desc`, `actorUserId`, `action`, `entityType`,
+`entityId`, `occurredFrom`, and `occurredTo`. Timestamp/ID sorting defaults to
+descending; page size defaults to 25 and is capped at 100. Date bounds are local
+calendar days resolved into a half-open UTC audit-instant interval, with at most
+1,825 days for two-sided ranges. Request IDs are exposed but cannot be filtered.
+No detail, mutation, export or arbitrary JSON search route exists. Historical
+actor/entity IDs and nullable system actors are preserved without enrichment.
+Read projections use explicit entity/nested-field allowlists; unknown metadata,
+credentials and internal session/network details remain private. Storage and
+append-only protection are unchanged. See api-contracts.md for exact fields.
 
 ## 7. API → Frontend Page Mapping
 
@@ -707,7 +720,7 @@ retains files and metadata. No cloud integration or automatic cleanup is added.
 | Analytics | Implemented summary/receivables-aging routes | Frontend not implemented |
 | Notifications | Implemented own inbox/read/archive routes | Frontend not implemented |
 | Reports | Implemented report/export routes | Frontend not implemented |
-| Audit Logs | Planned audit-log route | Frontend not implemented |
+| Audit Logs | Implemented audit-log list | Frontend not implemented |
 
 ## 8. API → Database Model Mapping
 
@@ -726,7 +739,7 @@ retains files and metadata. No cloud integration or automatic cleanup is added.
 | Analytics | `Invoice`, `Payment`, `Expense`, `Customer`, `Organization`, `Membership` (read only) |
 | Notifications | `Notification`, `ReminderDelivery`, `PendingEvent`, `Invoice`, `Payment`, `Customer`, `Organization`, `Membership` |
 | Reports | `ReportExport`, `PendingEvent`, `AuditLog`, `Notification`, `IdempotencyRecord` plus Financial source read models |
-| Future Audit Logs | `AuditLog` |
+| Audit Logs | `AuditLog`, `Membership`, `Organization` for current authorization |
 
 ## 9. API → Redis / BullMQ Mapping
 
@@ -884,9 +897,9 @@ permission for an active member is `403`.
 - Optional Invoice notes/terms/reference and recommended invoice idempotency replay are deferred.
 - Optional Payment reference/notes/reference search await schema support.
 - Expense request idempotency and the two documented performance indexes are deferred.
-- Historical analytics reconstruction and audit-read APIs are not implemented.
+- Historical analytics reconstruction is not implemented.
 - Report storage is local/private; cloud deployment and file retention cleanup remain deferred.
-- There is no AuditLog read API.
+- Audit history has one read-only list API; detail, export and metadata search are absent.
 - Swagger/OpenAPI is deferred to Prompt 27.
 - A React frontend is absent.
 - The backend is not deployed; infrastructure remains local development.
@@ -911,10 +924,10 @@ Do not manually increase the API count without verifying controllers.
 
 ## 16. Final Dashboard
 
-- Current implemented APIs: **64**
+- Current implemented APIs: **65**
 - Estimated final APIs: **65–70**
-- Implemented modules: **13 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L, Analytics, Notifications, Reports
+- Implemented modules: **14 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L, Analytics, Notifications, Reports, Audit Logs
 - Financial/report APIs implemented: **33**
 - Frontend implemented: **No**
 - Backend deployed: **No**
-- Next feature: **Audit Log API, pending a separate request**
+- Next feature: **Prompt 23 backend hardening, pending a separate request**

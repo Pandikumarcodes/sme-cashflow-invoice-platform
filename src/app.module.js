@@ -20,6 +20,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module.js';
 import { ProfitLossModule } from './modules/profit-loss/profit-loss.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 
 @Module({
@@ -43,6 +44,7 @@ import { ObservabilityModule } from './observability/observability.module.js';
     AnalyticsModule,
     NotificationsModule,
     ReportsModule,
+    AuditLogsModule,
     HealthModule,
   ],
 })

@@ -2,6 +2,16 @@
 
 Backend-first, multi-tenant cash-flow and invoice management platform. The JavaScript backend is a NestJS modular monolith. PostgreSQL/Prisma, Redis/BullMQ infrastructure, authentication, organizations, memberships, reusable RBAC, trusted tenant infrastructure, Customers, Invoices, Payments/reversals, Expenses, Cash Flow, and simplified cash-basis P&L are established. Financial summary, receivables aging, notification inbox APIs and reminder workers are implemented; external email remains provider-gated.
 
+## Audit history
+
+Prompt 22 adds the read-only `GET /api/v1/organizations/:organizationId/audit-logs`
+API, bringing the implemented total to 65. Current membership and `audit.read`
+are checked on every request and inside the read-only transaction. Timestamp/ID
+cursors, documented actor/action/entity/date filters and safe metadata projections
+expose immutable tenant history. Date bounds use organization-local calendar days
+against UTC audit instants; no detail, mutation, export, schema change or queue is
+added. See docs/api-contracts.md for the complete contract. Prompt 23 is not started.
+
 ## Cash Flow
 
 Prompt 17 adds `GET /api/v1/organizations/:organizationId/cash-flow`, protected by

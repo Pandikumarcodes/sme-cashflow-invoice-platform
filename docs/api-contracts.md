@@ -753,7 +753,76 @@ Missing/corrupt ready artifacts return 503 EXPORT_ARTIFACT_UNAVAILABLE.
   403; invalid/unknown fields or cursors are 400. Ordinary inbox reads and self-state
   commands create no financial audit or PendingEvent. No public create, manual-send,
   bulk-read, preferences, deletion or reminder-management route is introduced.
-- Audit list is read-only, requires `audit.read`, cursor-paginated and filterable. No public POST/PATCH/DELETE. Safe before/after metadata is returned only as stored/redacted.
+- Audit list is implemented in Prompt 22 as specified below.
+
+### Audit logs (Prompt 22)
+
+`GET /api/v1/organizations/:organizationId/audit-logs` requires current ACTIVE
+membership and `audit.read` (OWNER, ADMIN, ACCOUNTANT in the canonical role map).
+It returns `{data: [...], meta: {limit, nextCursor, hasMore}}`; an empty result is
+200 with `data: []`, `nextCursor: null`, and `hasMore: false`. There is no detail,
+mutation, export, or metadata-search route.
+
+Allowlisted query parameters:
+
+| Parameter | Meaning |
+|---|---|
+| `limit` | 1–100, default 25 |
+| `after` | Opaque versioned cursor bound to organization, resolved filters and sort |
+| `sortBy` | `occurredAt` only, also the default |
+| `sortOrder` | `asc` or `desc`, default `desc`; ID tie-breaker uses the same direction |
+| `actorUserId` | Exact UUID actor match |
+| `action` | Exact stored action string, 1–100 characters; no action renaming |
+| `entityType` | Exact stored entity type, 1–50 characters |
+| `entityId` | Exact UUID historical entity match; no current-resource existence check |
+| `occurredFrom`, `occurredTo` | Optional real `YYYY-MM-DD` calendar-day bounds on `occurredAt` |
+
+As section 3 specifies for instant filters, audit date bounds use the current
+organization timezone: inclusive local start of `occurredFrom`, exclusive local
+start of the day following `occurredTo`. This filters stored UTC audit instants,
+not invoice/payment/expense business dates. Either bound may be omitted; there
+is no implicit current-month filter. Two-sided ranges include at most 1,825
+calendar days. `occurredTo=9999-12-31` is rejected because its next-day boundary
+exceeds the four-digit date contract. DST and skipped local dates are handled.
+Changing resolved bounds, tenant, other filters or sort invalidates a cursor;
+changing page size is allowed. Cursors convey position, never authorization.
+Pages are not a persistent historical snapshot: new records ahead of a descending
+cursor appear on a fresh listing, while existing tied rows paginate by timestamp/ID.
+Unsupported, repeated, or malformed fields return 400; malformed or mismatched
+cursor positions return `INVALID_CURSOR`; transport DTO errors use the existing
+`VALIDATION_ERROR` shape and domain range errors use `INVALID_REQUEST`.
+`requestId` is returned but is not an accepted filter.
+Nonmembers/inactive memberships are concealed as 404; an active
+member without permission receives 403; missing/invalid authentication receives 401.
+
+Each entry exposes `id`, `organizationId`, `actorType`, nullable `actorUserId` and
+`actorMembershipId`, `action`, `entityType`, `entityId`, `outcome`, `source`, UTC ISO
+`occurredAt`, nullable `requestId`/`correlationId`, `changedFields`, `beforeData`,
+`afterData`, and `metadata`. Actor IDs are historical references, without user
+enrichment. SYSTEM/WORKER rows retain null actor IDs; global auth rows with null
+organization are excluded. Archived/deleted entities do not hide audit history.
+
+Before/after data is a read-time projection of existing writer allowlists:
+organization settings/status/ownership; membership role/status; invitation
+email/role/status/expiry/accepted membership; customer display name/code/email/
+status/version; invoice state/number/customer, dates, Decimal-string totals,
+discount/tax and safe item IDs/quantities/prices; payment receipt plus invoice
+settlement; expense/category business evidence; and export report type/format.
+Nested objects have explicit schemas. Changed-field paths use those same
+allowlists. Only organization closure `metadata.reason` is exposed; other
+metadata is null. Unknown entities/payload keys, export parameters, session IDs,
+IP/user-agent, credential/hash/token/header/provider secrets, stack traces and
+internal idempotency evidence are omitted. Unexpected nested values in scalar
+fields and strings above 2,048 characters become null; item and changed-field
+arrays are capped at 100. Safe stored scalar values, including Decimal strings,
+are preserved without financial recalculation or numeric conversion. This does
+not rewrite stored JSON or the immutable payment receipts used by replay.
+
+The application rechecks membership/permission in a READ ONLY RepeatableRead
+transaction and performs one tenant-fenced, filtered, ordered `limit + 1` Prisma
+query using existing indexes. There is no total-count or actor/resource N+1 query,
+write, audit-of-read, queue or cache. Existing append-only triggers remain intact;
+no Prisma schema change, index addition or migration is required.
 
 ## 11. Payment idempotency header
 
@@ -812,7 +881,7 @@ Abbreviations: A=authentication; M=ACTIVE tenant membership; I=idempotency; Tx=d
 | GET | `/:orgId/report-exports[/:id]` | Reports | ✓ | ✓ | `report.export` | — | — | — | Scoped state |
 | GET | `/:orgId/report-exports/:id/download` | Reports | ✓ | ✓ | `report.export` | — | — | ✓ | Ready/private |
 | GET/POST | `/:orgId/notifications[/:id/read|archive]` | Notification | ✓ | ✓ | notification self perms | — | mutation ✓ | — | Recipient only |
-| GET | `/:orgId/audit-logs` | Audit | ✓ | ✓ | `audit.read` | — | — | optional read audit | Immutable |
+| GET | `/:orgId/audit-logs` | Audit | ✓ | ✓ | `audit.read` | — | read-only | — | Immutable, projected metadata |
 | GET | `/health/live|ready` | Health | — | — | — | — | — | — | Minimal data |
 
 ## 13. API security invariants

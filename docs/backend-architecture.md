@@ -277,6 +277,15 @@ sequenceDiagram
 
 ## 11. Audit architecture
 
+Prompt 22 exposes the single tenant-scoped AuditLogsModule list route. The service
+rechecks `audit.read` in a READ ONLY RepeatableRead transaction and uses bounded
+PostgreSQL timestamp/ID cursor queries. Public metadata is projected through
+entity-specific writer allowlists; immutable stored receipts and existing
+transactional writers remain unchanged. No actor/resource joins, new append
+abstraction, audit-of-read side effect, schema migration or queue is introduced.
+Exact filters, local-day instant boundaries and exposed fields are documented in
+api-contracts.md under Audit logs (Prompt 22).
+
 Domain application services create structured audit facts at the point a mutation succeeds. Financial/permission audit entries share the domain transaction. Entry fields are actor type/user/session, organization, action, entity type/ID, outcome, allowlisted changes, request/correlation ID, occurred time, and safe network metadata.
 
 Audit persistence is append-only through a narrow `append` interface. There is no normal update/delete operation. Database grants should deny application-level update/delete when feasible. Read access is tenant-scoped and permission-protected. Large or secret-bearing values are excluded/redacted; before/after objects use field allowlists.
