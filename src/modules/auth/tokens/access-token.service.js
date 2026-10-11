@@ -7,16 +7,28 @@ import { jwtVerify, SignJWT } from 'jose';
 export class AccessTokenService {
   constructor(configService) {
     this.config = configService.getOrThrow('auth');
-    this.privateKey = createPrivateKey({
-      key: Buffer.from(this.config.accessPrivateKeyBase64, 'base64'),
-      format: 'der',
-      type: 'pkcs8',
-    });
-    this.publicKey = createPublicKey({
-      key: Buffer.from(this.config.accessPublicKeyBase64, 'base64'),
-      format: 'der',
-      type: 'spki',
-    });
+    try {
+      this.privateKey = createPrivateKey({
+        key: Buffer.from(this.config.accessPrivateKeyBase64, 'base64'),
+        format: 'der',
+        type: 'pkcs8',
+      });
+      this.publicKey = createPublicKey({
+        key: Buffer.from(this.config.accessPublicKeyBase64, 'base64'),
+        format: 'der',
+        type: 'spki',
+      });
+      if (
+        this.privateKey.asymmetricKeyType !== 'ed25519' ||
+        this.publicKey.asymmetricKeyType !== 'ed25519' ||
+        !createPublicKey(this.privateKey)
+          .export({ format: 'der', type: 'spki' })
+          .equals(this.publicKey.export({ format: 'der', type: 'spki' }))
+      )
+        throw new Error('Invalid signing keys');
+    } catch {
+      throw new Error('Access signing keys must be a matching Ed25519 key pair.');
+    }
   }
 
   async issue(userId, sessionId) {

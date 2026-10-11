@@ -102,6 +102,7 @@ export class AuthController {
       ip: request.ip,
       userAgent: request.headers?.['user-agent'],
       origin: request.headers?.origin,
+      referer: request.headers?.referer,
     };
   }
 

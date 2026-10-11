@@ -444,3 +444,7 @@ generation, authorized/audited downloads and lazy expiry use the existing schema
 Object storage deployment, file retention cleanup, PDF, frontend and AI remain
 deferred. Audit Log APIs were deferred at that milestone and are now delivered in
 Prompt 22's bounded read slice above. See reports-implementation.md for Prompt 21 decisions.
+
+## Prompt 23 final core backend hardening
+
+The completed 65-route surface is preserved. This pass addresses safe logs and configuration errors, production signing keys and browser cookie protection, repeatable logout, single Prisma client initialization and bounded report file reads. No schema evolution or product module is required. Verification and remaining operational rollout prerequisites are recorded in production-readiness.md. Frontend, deployment and AI implementation remain outside this milestone.

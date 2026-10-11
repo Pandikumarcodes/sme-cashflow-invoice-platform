@@ -15,7 +15,7 @@ const corsOrigins = z
       origins.every((origin) => {
         try {
           const url = new URL(origin);
-          return url.origin === origin;
+          return ['http:', 'https:'].includes(url.protocol) && url.origin === origin;
         } catch {
           return false;
         }
@@ -71,9 +71,26 @@ export const environmentSchema = z.object({
   AUTH_REFRESH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(30),
 });
 export function parseEnvironment(environment) {
-  const parsed = environmentSchema.parse(environment);
+  const result = environmentSchema.safeParse(environment);
+  if (!result.success)
+    throw new Error(
+      `Invalid environment fields: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`,
+    );
+  const parsed = result.data;
   if (parsed.NODE_ENV === 'production' && parsed.EMAIL_PROVIDER === 'capture')
     throw new Error('Capture email provider is limited to development and tests.');
+  if (parsed.NODE_ENV === 'production') {
+    if (
+      !environment.CORS_ORIGINS ||
+      parsed.CORS_ORIGINS.some((origin) => !origin.startsWith('https://'))
+    )
+      throw new Error('Production requires explicit HTTPS CORS origins.');
+    if (
+      Buffer.from(parsed.AUTH_ACCESS_PUBLIC_KEY_BASE64, 'base64').toString('base64') ===
+      'MCowBQYDK2VwAyEABdqDMyeA8N8yOW/It/UtBCMURg8cJkEWDd0PiBwYeUw='
+    )
+      throw new Error('Production requires a private deployment signing key pair.');
+  }
   return parsed;
 }
 export function validateEnvironment(environment) {

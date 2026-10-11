@@ -343,7 +343,7 @@ Each entry records organization (nullable only for global auth events), actor us
 - **Reliability:** jobs are at-least-once and idempotent; financial mutations remain synchronous; retries cannot duplicate side effects.
 - **Observability:** structured logs with correlation, organization, user, route, duration, and safe error code; job metrics, queue depth, retries, database latency, auth failures, and financial reconciliation failures.
 - **Privacy:** collect minimum PII, redact logs, authorize exports, define retention/deletion policy before public launch.
-- **Maintainability:** strict TypeScript, module boundaries, lint/format checks, migrations reviewed, and tests required in CI.
+- **Maintainability:** JavaScript-only NestJS, module boundaries, lint/format checks, migrations reviewed, and tests required in CI.
 
 ## 16. Financial business-rule catalogue
 

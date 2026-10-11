@@ -317,7 +317,7 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 
 ### 9.3 Refresh
 
-- **Route:** `POST /api/v1/auth/refresh`; empty JSON body or no body; refresh cookie required.
+- **Route:** `POST /api/v1/auth/refresh`; empty JSON body {}; refresh cookie required.
 - **Rules/Transaction:** validate Origin policy; rotate token exactly once per authentication design.
 - **Response:** `200 {data:{accessToken,tokenType:"Bearer",expiresIn:900}}` and replacement cookie.
 - **Errors/Audit:** 401 invalid/expired; reuse revokes family and returns `SESSION_COMPROMISED`; audit reuse. No application idempotency key because token rotation itself is single-use.
@@ -964,3 +964,7 @@ Every implemented endpoint must later publish OpenAPI operation summary, auth sc
 - [ ] HTTP status mapping is finalized
 - [ ] Cross-tenant existence leakage is addressed
 - [ ] No application code has been generated
+
+### Prompt 23 authentication transport hardening
+
+All five authentication POST endpoints require Content-Type: application/json; empty commands use {}. Other media types return 415 with INVALID_REQUEST in the canonical error envelope. Login rejects a supplied Origin or Referer outside the allowlist. In production, refresh and logout using a refresh cookie require an allowed Origin, or an allowed Referer origin if Origin is absent; an invalid supplied Origin never falls back to Referer. Bearer-only logout may omit browser headers. Valid signed bearer logout is repeatable after revocation; an expired or invalid bearer may fall back to the supplied refresh cookie with cookie origin protections. Logout grants no access to resources and does not reactivate sessions.

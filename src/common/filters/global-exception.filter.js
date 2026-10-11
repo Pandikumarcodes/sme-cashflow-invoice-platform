@@ -23,11 +23,9 @@ export class GlobalExceptionFilter {
         event: 'unhandled_request_error',
         requestId,
         method: request.method,
-        path: request.path,
-        error:
-          exception instanceof Error
-            ? { name: exception.name, message: exception.message, stack: exception.stack }
-            : { type: typeof exception },
+        route: request.route?.path ?? 'unmatched',
+        code: mapped.body.error.code,
+        status: mapped.status,
       });
     response.status(mapped.status).json(mapped.body);
   }

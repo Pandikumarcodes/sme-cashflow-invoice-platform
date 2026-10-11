@@ -10,7 +10,7 @@ are checked on every request and inside the read-only transaction. Timestamp/ID
 cursors, documented actor/action/entity/date filters and safe metadata projections
 expose immutable tenant history. Date bounds use organization-local calendar days
 against UTC audit instants; no detail, mutation, export, schema change or queue is
-added. See docs/api-contracts.md for the complete contract. Prompt 23 is not started.
+added. See docs/api-contracts.md for the complete contract. Prompt 23 hardens the completed backend; see [production readiness](docs/production-readiness.md).
 
 ## Cash Flow
 
@@ -54,7 +54,7 @@ forecasts or AI is introduced. See docs/api-contracts.md sections 9.15-16.
 
 ## Prerequisites
 
-- Node.js 24 LTS (Node.js 22 or newer is supported)
+- Node.js 24 LTS (minimum Node.js 22.9.0; verified with 24.18.0)
 - npm 10 or newer
 - Docker with Compose for local PostgreSQL and Redis
 
@@ -371,3 +371,13 @@ are documented follow-ups. Unit tests are colocated with the module; PostgreSQL
 and HTTP coverage lives in test/integration/expenses.integration-spec.js and
 test/expenses.e2e-spec.js. Run database integration and E2E suites sequentially
 because they share the dedicated guarded sme_cashflow_test database.
+
+## Backend hardening and verification
+
+Production requires a matching private Ed25519 signing key pair and explicitly configured HTTPS CORS origins. The published development keys are rejected. Configuration errors report field names without values. Production refresh-cookie operations require an allowed Origin or Referer. All authentication POSTs require Content-Type: application/json; send {} for empty commands. Login also rejects supplied unapproved origins. Repeated logout is safe; a valid refresh cookie can revoke its session when the access token has expired.
+
+HTTP logs retain request IDs, methods, route templates, statuses and timing; request bodies, raw URLs, headers and exception contents are omitted. Private report reads check size before allocating and verify checksums. The API and worker remain separate processes. Use npm run start:worker:prod for a prebuilt worker with environment supplied externally.
+
+Run npm run build then npm run verify:api-inventory. Run npm run db:migrate:status:test for guarded test migration status; npx prisma migrate status checks the configured development database without modifying it. Keep PostgreSQL integration, E2E and queue suites sequential.
+
+The minimum runtime supports [Node's --env-file-if-exists option](https://nodejs.org/api/cli.html#--env-file-if-existsfile). No dependency major version was changed.

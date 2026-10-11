@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, unlink } from 'node:fs/promises';
+import { mkdir, open, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { resolve } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
@@ -29,7 +29,23 @@ export class ReportStorage {
   }
   async read(key, checksum, organizationId) {
     if (!key.startsWith(organizationId + '/')) throw new Error('INVALID_ARTIFACT_KEY');
-    const bytes = await readFile(this.path(key));
+    const file = await open(this.path(key), constants.O_RDONLY);
+    let bytes;
+    try {
+      const stat = await file.stat();
+      if (!stat.isFile() || stat.size > 10 * 1024 * 1024) throw new Error('ARTIFACT_UNAVAILABLE');
+      const buffer = Buffer.alloc(stat.size + 1);
+      let length = 0;
+      while (length < buffer.length) {
+        const { bytesRead } = await file.read(buffer, length, buffer.length - length, null);
+        if (!bytesRead) break;
+        length += bytesRead;
+      }
+      if (length !== stat.size) throw new Error('ARTIFACT_UNAVAILABLE');
+      bytes = buffer.subarray(0, length);
+    } finally {
+      await file.close();
+    }
     if (
       bytes.length > 10 * 1024 * 1024 ||
       createHash('sha256').update(bytes).digest('hex') !== checksum

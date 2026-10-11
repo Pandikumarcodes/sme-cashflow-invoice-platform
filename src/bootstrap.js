@@ -1,4 +1,4 @@
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { UnsupportedMediaTypeException, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -15,6 +15,20 @@ export function configureApplication(app) {
   app.set('trust proxy', config.trustProxy);
   app.use(helmet());
   app.use(cookieParser());
+  const authPaths = new Set(
+    ['register', 'login', 'refresh', 'logout', 'logout-all'].map(
+      (action) => '/' + config.apiPrefix + '/v' + config.apiVersion + '/auth/' + action,
+    ),
+  );
+  app.use((request, _response, next) => {
+    if (
+      request.method === 'POST' &&
+      authPaths.has(request.path.toLowerCase().replace(/\/$/, '')) &&
+      !request.is('application/json')
+    )
+      return next(new UnsupportedMediaTypeException());
+    next();
+  });
   app.enableCors({
     origin: [...config.corsOrigins],
     credentials: true,

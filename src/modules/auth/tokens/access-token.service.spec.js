@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { AccessTokenService } from './access-token.service.js';
 
 const config = {
@@ -29,4 +30,28 @@ describe('AccessTokenService', () => {
     expect(claims).not.toHaveProperty('email');
     expect(claims).not.toHaveProperty('permissions');
   });
+});
+
+it('fails startup safely for malformed, mismatched, and non-Ed25519 keys', () => {
+  const other = generateKeyPairSync('ed25519');
+  const ec = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  for (const values of [
+    { accessPrivateKeyBase64: 'SECRET_INVALID_KEY' },
+    {
+      accessPublicKeyBase64: other.publicKey
+        .export({ format: 'der', type: 'spki' })
+        .toString('base64'),
+    },
+    {
+      accessPrivateKeyBase64: ec.privateKey
+        .export({ format: 'der', type: 'pkcs8' })
+        .toString('base64'),
+      accessPublicKeyBase64: ec.publicKey
+        .export({ format: 'der', type: 'spki' })
+        .toString('base64'),
+    },
+  ])
+    expect(() => new AccessTokenService({ getOrThrow: () => ({ ...config, ...values }) })).toThrow(
+      'matching Ed25519',
+    );
 });

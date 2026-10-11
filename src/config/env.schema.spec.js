@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { parseEnvironment } from './env.schema.js';
 const authKeys = {
   AUTH_ACCESS_PRIVATE_KEY_BASE64:
@@ -91,4 +92,42 @@ describe('environment configuration', () => {
   it.each(invalidEnvironments)('rejects %s (%s)', (environment) => {
     expect(() => parseEnvironment({ ...authKeys, ...environment })).toThrow();
   });
+});
+
+it('rejects published production keys and insecure or implicit production origins', () => {
+  const base = {
+    DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
+    ...authKeys,
+    NODE_ENV: 'production',
+  };
+  expect(() => parseEnvironment({ ...base, CORS_ORIGINS: 'https://app.example.com' })).toThrow(
+    'signing key pair',
+  );
+  expect(() => parseEnvironment(base)).toThrow('HTTPS');
+  expect(() => parseEnvironment({ ...base, CORS_ORIGINS: 'http://app.example.com' })).toThrow(
+    'HTTPS',
+  );
+  const keys = generateKeyPairSync('ed25519');
+  expect(
+    parseEnvironment({
+      ...base,
+      CORS_ORIGINS: 'https://app.example.com',
+      AUTH_ACCESS_PRIVATE_KEY_BASE64: keys.privateKey
+        .export({ format: 'der', type: 'pkcs8' })
+        .toString('base64'),
+      AUTH_ACCESS_PUBLIC_KEY_BASE64: keys.publicKey
+        .export({ format: 'der', type: 'spki' })
+        .toString('base64'),
+    }).NODE_ENV,
+  ).toBe('production');
+});
+it('never echoes invalid configuration values', () => {
+  try {
+    parseEnvironment({ ...authKeys, DATABASE_URL: 'SECRET_INVALID_URL' });
+  } catch (error) {
+    expect(error.message).toContain('DATABASE_URL');
+    expect(error.message).not.toContain('SECRET');
+    return;
+  }
+  throw new Error('Expected rejection');
 });

@@ -3,6 +3,7 @@ import { createPrivateKey, randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import { SignJWT } from 'jose';
 import request from 'supertest';
+import { AuthService } from '../src/modules/auth/application/auth.service.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApplication } from '../src/bootstrap.js';
 import { clearDatabase, createTestPrismaClient } from './integration/database-test-helpers.js';
@@ -43,6 +44,87 @@ describe('authentication endpoints (e2e)', () => {
     return { agent, login };
   }
 
+  it('rejects form and cross-origin login without creating a session', async () => {
+    await request(server).post('/api/v1/auth/register').send(validRegistration).expect(201);
+    await request(server)
+      .post('/api/v1/auth/login')
+      .type('form')
+      .send(validRegistration)
+      .expect(415);
+    await request(server)
+      .post('/api/v1/auth/login')
+      .set('Origin', 'https://evil.example')
+      .send({ email: validRegistration.email, password: validRegistration.password })
+      .expect(401);
+    await request(server)
+      .post('/API/V1/AUTH/LOGIN/')
+      .type('form')
+      .send(validRegistration)
+      .expect(415);
+    expect(await prisma.refreshSession.count()).toBe(0);
+  });
+  it('requires an allowed origin or referer for production cookie refresh', async () => {
+    const { login } = await registerAndLogin();
+    const cookie = login.headers['set-cookie'][0].split(';')[0];
+    const service = app.get(AuthService);
+    const original = service.config;
+    service.config = { ...original, cookieSecure: true };
+    try {
+      await request(server).post('/api/v1/auth/refresh').set('Cookie', cookie).send({}).expect(401);
+      await request(server)
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', cookie)
+        .set('Referer', 'malformed')
+        .send({})
+        .expect(401);
+      await request(server)
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', cookie)
+        .set('Origin', 'https://evil.example')
+        .set('Referer', 'http://localhost:5173/page')
+        .send({})
+        .expect(401);
+      await request(server)
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', cookie)
+        .set('Referer', 'http://localhost:5173/page')
+        .send({})
+        .expect(200);
+    } finally {
+      service.config = original;
+    }
+  });
+  it('allows repeated bearer logout and cookie logout with an invalid bearer', async () => {
+    const { login } = await registerAndLogin();
+    const rejected = await request(server)
+      .post('/api/v1/auth/logout')
+      .set('Authorization', 'Bearer invalid')
+      .send({})
+      .expect(401);
+    expect(rejected.body.error.code).toBe('UNAUTHENTICATED');
+    const bearer = 'Bearer ' + login.body.data.accessToken;
+    await request(server)
+      .post('/api/v1/auth/logout')
+      .set('Authorization', bearer)
+      .send({})
+      .expect(204);
+    await request(server)
+      .post('/api/v1/auth/logout')
+      .set('Authorization', bearer)
+      .send({})
+      .expect(204);
+    const next = await request(server)
+      .post('/api/v1/auth/login')
+      .send({ email: validRegistration.email, password: validRegistration.password })
+      .expect(200);
+    await request(server)
+      .post('/api/v1/auth/logout')
+      .set('Authorization', 'Bearer invalid')
+      .set('Cookie', next.headers['set-cookie'][0].split(';')[0])
+      .send({})
+      .expect(204);
+    expect(await prisma.refreshSession.count({ where: { status: 'ACTIVE' } })).toBe(0);
+  });
   it('registers only a safe global user and rejects duplicates, invalid fields, and unknown fields', async () => {
     const created = await request(server)
       .post('/api/v1/auth/register')
@@ -135,7 +217,11 @@ describe('authentication endpoints (e2e)', () => {
       .sign(privateKey);
     await request(server).get('/api/v1/me').set('Authorization', `Bearer ${expired}`).expect(401);
 
-    await agent.post('/api/v1/auth/logout').send({}).expect(204);
+    await agent
+      .post('/api/v1/auth/logout')
+      .set('Authorization', `Bearer ${expired}`)
+      .send({})
+      .expect(204);
     await request(server).get('/api/v1/me').set('Authorization', `Bearer ${token}`).expect(401);
   });
 

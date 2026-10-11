@@ -7,18 +7,15 @@ verified against controllers in `src/`; planned routes come from
 ## 1. API Summary
 
 - Current implemented APIs: **65**
-- Estimated final APIs: **65–70**
-- Estimated remaining APIs: **0–5**
-- Current milestone: **Prompt 22 Audit Log APIs**
-- Verification: Prompt 22 passes 45 unit suites/297 tests, 15 PostgreSQL suites/134
-  tests, 14 E2E suites/74 tests, 3 queue suites/8 tests, and a 220-file build.
-  Formatting, lint, Prisma validation and diff checks pass.
+- Final core backend APIs: **65**
+- Remaining core backend APIs: **0**
+- Current milestone: **Prompt 23 Final Backend Hardening**
+- Verification: see [Prompt 23 production readiness](production-readiness.md) for final commands and outcomes.
 - Base path: `/api/v1`
 - Authentication: Bearer access token plus HttpOnly refresh cookie
 - Backend deployment: Local development only
 
-The estimate is based on the current API-contract route map. It is not a
-commitment that every planned route will remain separate.
+The final core backend contract is complete; future product work requires a separate scope.
 
 Prompt 12 introduced trusted tenant context and explicit Prisma query helpers
 with **zero new HTTP APIs**, retaining 23 APIs at that milestone. Prompt 13 uses
@@ -925,9 +922,9 @@ Do not manually increase the API count without verifying controllers.
 ## 16. Final Dashboard
 
 - Current implemented APIs: **65**
-- Estimated final APIs: **65–70**
+- Final core backend APIs: **65**
 - Implemented modules: **14 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L, Analytics, Notifications, Reports, Audit Logs
 - Financial/report APIs implemented: **33**
 - Frontend implemented: **No**
 - Backend deployed: **No**
-- Next feature: **Prompt 23 backend hardening, pending a separate request**
+- Core backend scope: **Prompt 23 is the final core backend prompt; frontend and deployment remain separate work**

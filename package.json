@@ -9,7 +9,7 @@
     "seed": "node prisma/seed.js"
   },
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">=22.9.0",
     "npm": ">=10.0.0"
   },
   "scripts": {
@@ -33,7 +33,10 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "start:worker:prod": "node dist/worker.js",
+    "verify:api-inventory": "node --env-file-if-exists=.env scripts/check-api-inventory.js",
+    "db:migrate:status:test": "node --env-file=.env scripts/migrate-test-database.js --status"
   },
   "dependencies": {
     "@nestjs/common": "^12.1.0",

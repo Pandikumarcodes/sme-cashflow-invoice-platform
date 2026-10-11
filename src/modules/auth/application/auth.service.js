@@ -58,6 +58,7 @@ export class AuthService {
   }
 
   async login(input, metadata = {}) {
+    this.assertAllowedOrigin(metadata.origin, metadata.referer);
     const prisma = await this.prismaService.getClient();
     const normalizedEmail = normalizeEmail(input.email);
     const user = await prisma.user.findUnique({ where: { normalizedEmail } });
@@ -109,7 +110,7 @@ export class AuthService {
   }
 
   async refresh(rawToken, metadata = {}) {
-    this.assertAllowedOrigin(metadata.origin);
+    this.assertAllowedOrigin(metadata.origin, metadata.referer, true);
     if (!rawToken) throw this.invalidSession();
     const prisma = await this.prismaService.getClient();
     const tokenHash = hashRefreshToken(rawToken);
@@ -215,13 +216,25 @@ export class AuthService {
   }
 
   async logout({ rawAccessToken, rawRefreshToken, metadata = {} }) {
-    this.assertAllowedOrigin(metadata.origin);
+    this.assertAllowedOrigin(metadata.origin, metadata.referer, Boolean(rawRefreshToken));
     const prisma = await this.prismaService.getClient();
     let sessionId;
     if (rawAccessToken) {
-      const auth = await this.authenticateAccess(rawAccessToken);
-      sessionId = auth.sessionId;
-    } else if (rawRefreshToken) {
+      let claims;
+      try {
+        claims = await this.accessTokens.verify(rawAccessToken);
+      } catch {
+        if (!rawRefreshToken)
+          throw new ApplicationError(ERROR_CODES.UNAUTHENTICATED, 'Authentication is required.');
+      }
+      if (claims) {
+        const session = await prisma.refreshSession.findFirst({
+          where: { id: claims.sid, userId: claims.sub },
+        });
+        sessionId = session?.id;
+      }
+    }
+    if (!sessionId && rawRefreshToken) {
       const token = await prisma.refreshToken.findUnique({
         where: { tokenHash: hashRefreshToken(rawRefreshToken) },
       });
@@ -280,8 +293,20 @@ export class AuthService {
     });
   }
 
-  assertAllowedOrigin(origin) {
-    if (origin && !this.config.corsOrigins.includes(origin)) throw this.invalidSession();
+  assertAllowedOrigin(origin, referer, required = false) {
+    let candidate = origin;
+    if (!candidate && referer) {
+      try {
+        candidate = new URL(referer).origin;
+      } catch {
+        throw this.invalidSession();
+      }
+    }
+    if (
+      (candidate && !this.config.corsOrigins.includes(candidate)) ||
+      (!candidate && required && this.config.cookieSecure)
+    )
+      throw this.invalidSession();
   }
 
   invalidCredentials() {
