@@ -1,5 +1,9 @@
 # Database Design
 
+Repository layout: schema, unchanged migrations and seed live in `backend/prisma/`.
+Backend paths below assume `backend/` as working directory. The move needs no
+schema change or new migration.
+
 ## Prompt 15 implemented persistence
 
 No schema or migration change is needed for Payments. Existing Payment,

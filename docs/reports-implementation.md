@@ -1,5 +1,10 @@
 # Prompt 21 Reports / Export
 
+Repository layout: backend paths below are relative to `backend/`. Relative report
+storage and existing private artifacts now live in `backend/.private/`; API and
+worker commands run from `backend/` with the same storage configuration. Shared
+docs remain at root. Report contracts and generation behavior are unchanged.
+
 ReportsModule owns ReportExport commands, metadata and download authorization.
 FinancialModule exports ReportReader for the register joins and delegates cash,
 performance and aging to the existing canonical readers. Shared invoiceFacts

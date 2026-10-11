@@ -31,35 +31,44 @@ No domain decision is redesigned here. Names such as `AuthModule` are NestJS cod
 
 ## 3. Top-level repository structure
 
-The planned repository is:
+Backend commands and code paths below are relative to `backend/` unless explicitly
+prefixed. Shared documentation links remain relative to their document.
+
+The current repository layout is:
 
 ```text
 /
-├── src/                         # NestJS API, domain modules, and shared runtime code
-├── prisma/                      # Prisma schema, migrations, and development seed entry point
-├── test/                        # Integration/E2E suites and shared test support
-├── docs/                        # The eight planning documents; later implementation notes by review
-├── scripts/                     # Small operational/dev scripts with documented safety checks
-├── docker/                      # Later container support files, not Compose itself
-├── .env.example                 # Names and safe examples only; never real secrets
+├── backend/
+│   ├── src/                     # JavaScript Nest API and independent worker
+│   ├── prisma/                  # Unchanged schema, migrations and seed
+│   ├── test/                    # PostgreSQL, E2E, queue suites and helpers
+│   ├── scripts/                 # Narrow operational/dev scripts
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── .env.example
+│   ├── babel.config.cjs
+│   ├── eslint.config.mjs
+│   ├── jest.config.cjs
+│   ├── jest.integration.config.cjs
+│   ├── jest.e2e.config.cjs
+│   ├── jest.queues.config.cjs
+│   ├── .prettierrc
+│   ├── .prettierignore
+│   └── README.md
+├── frontend/                    # Independent React/TypeScript/Vite package
+├── docs/                        # Shared plans and implementation notes
 ├── .gitignore
 ├── .editorconfig
-├── .prettierrc
-├── eslint.config.*
-├── package.json                 # Scripts, pinned engines, dependencies
-├── package-lock.json            # Reproducible npm dependency graph
-├── babel.config.cjs             # Legacy Nest decorator transform for JavaScript builds
-├── nest-cli.json
-├── jest.config.*                # Unit test configuration
-├── jest.integration.config.*    # Real-service integration configuration
-├── jest.e2e.config.*            # Nest/Supertest configuration
-├── Dockerfile                   # Production image, deferred to production-readiness phase
 ├── docker-compose.yml           # Local PostgreSQL/Redis development topology
 ├── AGENTS.md                    # Codex/contributor working rules, created by Prompt 5
 └── README.md                    # Setup, commands, architecture links, and safe workflows
 ```
 
-Conceptual paths do not authorize creation now. Prompt 5 creates only its explicitly listed subset. `docker/` holds later entrypoint or service configuration only when a concrete need exists; an empty directory is not created. `scripts/` must contain narrowly scoped scripts, not a second task-runner ecosystem.
+Each package owns its ignored environment, dependencies and generated output.
+Backend private report storage also lives under `backend/`. No root package,
+workspaces, task-runner framework, Dockerfile or empty Docker directory is added.
+Keep backend API and worker commands in that package so environment and relative
+storage resolution agree. The root Compose project and named volumes are retained.
 
 ## 4. Full `src/` tree
 
@@ -669,7 +678,7 @@ Exact signing-key encoding is decided during implementation and documented in `.
 
 Local development recommendation:
 
-- Run PostgreSQL and Redis through `docker-compose.yml` with named volumes and health checks.
+- Run PostgreSQL and Redis through root `docker-compose.yml` with named volumes and health checks; from `backend/`, `npm run infra:up` passes `--env-file .env -f ../docker-compose.yml` explicitly.
 - Run the Nest API/worker directly on the host for fast reload/debugging.
 - An optional Compose backend profile may be added only if cross-platform onboarding needs it; it is not the default.
 - Production `Dockerfile` is deferred to the production Docker stage.
@@ -868,7 +877,7 @@ Prompt 5 objective: **create the NestJS backend repository foundation only**.
 It should create:
 
 - root `AGENTS.md` with project purpose, source-of-truth docs, commands, module/file ownership, tenant and money rules, testing expectations, forbidden patterns, and the bounded Codex workflow below;
-- NestJS application scaffold at repository root with `src/main.ts` and `src/app.module.ts` only as foundation code;
+- Original NestJS application foundation is JavaScript (`src/main.js`, `src/app.module.js`), now located within `backend/`;
 - JavaScript, npm engine/lockfile, decorator build transform, ESLint, and Prettier configuration;
 - the minimum real directories/files needed for configuration validation, Pino logging/redaction, request IDs, base application errors/global exception filter, global ValidationPipe/bootstrap, and Health liveness;
 - Jest unit configuration and focused foundation tests;

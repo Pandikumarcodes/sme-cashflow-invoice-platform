@@ -1,0 +1,206 @@
+.shell {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+  align-items: center;
+  max-width: 68rem;
+  margin: var(--space-6) auto;
+}
+.intro {
+  max-width: 29rem;
+}
+.eyebrow {
+  color: var(--color-brand);
+  font: 0.72rem var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+}
+.intro h1,
+.session h1 {
+  font: 400 clamp(2.5rem, 5vw, 4.1rem)/1.1 var(--font-display);
+  letter-spacing: -0.04em;
+  margin: var(--space-5) 0;
+}
+.intro p:not(.eyebrow),
+.session p {
+  color: var(--color-muted);
+  line-height: 1.7;
+}
+.note {
+  color: var(--color-muted);
+  border-left: 2px solid var(--color-accent);
+  padding-left: var(--space-4);
+  margin-top: var(--space-8);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.card {
+  padding: var(--space-7);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow-soft);
+}
+.card h2 {
+  font: 400 1.8rem var(--font-display);
+  margin: 0 0 var(--space-2);
+}
+.subtitle {
+  color: var(--color-muted);
+  line-height: 1.6;
+  font-size: 0.9rem;
+  margin-bottom: var(--space-6);
+}
+.field {
+  margin-bottom: var(--space-5);
+  min-width: 0;
+}
+.field label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.inputWrap {
+  position: relative;
+}
+.inputWrap input {
+  width: 100%;
+  padding: 0.85rem var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface);
+  color: var(--color-text);
+  min-height: 2.9rem;
+}
+.inputWrap input[type='password'],
+.inputWrap:has(.toggle) input {
+  padding-right: 4rem;
+}
+.inputWrap input[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+.toggle {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--color-brand);
+  padding: 0.4rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.fieldError {
+  color: var(--color-error);
+  font-size: 0.8rem;
+  margin: var(--space-2) 0 0;
+}
+.primary {
+  background: var(--color-brand);
+  color: white;
+  border: none;
+  border-radius: var(--radius-small);
+  padding: 0.95rem var(--space-5);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 2.9rem;
+}
+.card .primary {
+  width: 100%;
+}
+.primary:hover {
+  background: var(--color-brand-hover);
+}
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.secondary {
+  background: transparent;
+  color: var(--color-brand);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  padding: var(--space-3);
+  cursor: pointer;
+}
+.switch {
+  margin: var(--space-5) 0 0;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.switch a {
+  font-weight: 600;
+  text-underline-offset: 0.2rem;
+}
+.names {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+.hint {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  margin: -0.6rem 0 var(--space-5);
+}
+.error,
+.success {
+  border-radius: var(--radius-small);
+  padding: var(--space-3);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.error {
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+}
+.success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.loading {
+  min-height: 16rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--color-muted);
+}
+.loader {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 0 0.3rem var(--color-accent);
+}
+.session {
+  max-width: 40rem;
+  margin: var(--space-7) auto;
+}
+@media (max-width: 48rem) {
+  .shell {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+    max-width: 30rem;
+    margin: 0 auto;
+  }
+  .intro h1 {
+    font-size: 2.7rem;
+  }
+  .note {
+    display: none;
+  }
+  .card {
+    padding: var(--space-5);
+  }
+}
+@media (max-width: 30rem) {
+  .names {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

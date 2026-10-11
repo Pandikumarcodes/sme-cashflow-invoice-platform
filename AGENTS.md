@@ -2,9 +2,11 @@
 
 ## Project
 
-This is the backend-first SME Cash Flow & Invoice Management System. It is a single NestJS modular monolith written in JavaScript. The eight files in `docs/` are authoritative; `docs/repository-blueprint.md` defines repository structure and implementation boundaries.
+This is the backend-first SME Cash Flow & Invoice Management System. The NestJS modular monolith lives in `backend/`; the independent React application lives in `frontend/`. Planning documents in root `docs/` are authoritative; `docs/repository-blueprint.md` defines repository structure and implementation boundaries.
 
-Use `.js` for backend source and tests. Do not create `.ts` files, TypeScript interfaces, or TypeScript-only tooling. Selective JSDoc is allowed only when it materially clarifies an important contract.
+Use `.js` for backend source and tests. Do not create `.ts` files, TypeScript interfaces, or TypeScript-only tooling inside `backend/`. The approved frontend uses TypeScript. Selective JSDoc is allowed only when it materially clarifies an important backend contract.
+
+Run backend npm, Prisma, API and worker commands from `backend/`, and frontend commands from `frontend/`. Each application owns its package, lockfile, dependencies, ignored `.env` and build output. There is no root npm package. Compose stays at root; infrastructure scripts reference it and `backend/.env`, preserving the root Compose project and volumes. Backend code/test/script/Prisma paths in planning documents are relative to `backend/` unless explicitly rooted; documentation links remain relative to their document.
 
 ## Architecture Rules
 

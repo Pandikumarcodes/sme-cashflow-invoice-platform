@@ -4,6 +4,11 @@ Verification date: 2026-10-11. Runtime: Node.js 24.18.0. This is the final core 
 
 ## Readiness audit
 
+Repository layout update: backend commands below run from `backend/`; listed
+code/test/script paths are backend-relative. Docs and Compose remain at root.
+Prompt 23 outcomes are historical baseline results; structural checks are recorded
+in [repository restructure](repository-restructure.md).
+
 The working tree was clean before this task. Review covered the authoritative planning documents, source modules, migrations, tests, and registered routes. Only confirmed defects and material risks were changed.
 
 | Area                  | Severity  | Finding and disposition                                                                                                                                                                                                                                                            |

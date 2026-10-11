@@ -34,7 +34,7 @@ for (const controller of controllers) {
     );
   }
 }
-const inventory = await readFile(new URL('../docs/api-inventory.md', import.meta.url), 'utf8');
+const inventory = await readFile(new URL('../../docs/api-inventory.md', import.meta.url), 'utf8');
 const documented = inventory
   .split('\n')
   .filter((line) => /^\|\s*\d+\s*\|/.test(line))

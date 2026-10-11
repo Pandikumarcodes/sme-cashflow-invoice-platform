@@ -1,0 +1,33 @@
+:root {
+  --color-background: #f7f7f0;
+  --color-surface: #fffef9;
+  --color-text: #202f29;
+  --color-muted: #627068;
+  --color-border: #dde1d6;
+  --color-brand: #173f35;
+  --color-brand-hover: #245848;
+  --color-accent: #d7e7b4;
+  --color-success: #246346;
+  --color-success-soft: #edf2e4;
+  --color-warning: #8b5919;
+  --color-error: #a33939;
+  --font-body: 'Segoe UI', system-ui, sans-serif;
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-mono: 'SFMono-Regular', Consolas, monospace;
+  --font-small: 0.85rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --radius-small: 0.5rem;
+  --radius-large: 1rem;
+  --shadow-soft: 0 0.75rem 2rem #173f3505;
+  --page-width: 80rem;
+  /* CSS variables cannot be used in media conditions: modules use these exact thresholds. */
+  --breakpoint-mobile: 30rem;
+  --breakpoint-tablet: 48rem;
+}

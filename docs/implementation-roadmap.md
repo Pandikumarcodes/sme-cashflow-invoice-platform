@@ -1,5 +1,10 @@
 # Implementation Roadmap
 
+Repository layout update: the completed JavaScript backend lives in `backend/`;
+the separately approved React/TypeScript foundation and authentication live in
+`frontend/`. Backend commands and code paths below assume `backend/`. The original
+backend milestone sequence is historical; restructuring starts no new feature.
+
 ## 1. Roadmap principles
 
 - Implement one infrastructure concern or vertical feature at a time; do not start React.

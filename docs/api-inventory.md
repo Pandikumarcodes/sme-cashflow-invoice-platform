@@ -1,8 +1,12 @@
 # SME Cash Flow & Invoice Management System — API Inventory
 
 This is the maintained inventory of the HTTP API surface. Implemented routes are
-verified against controllers in `src/`; planned routes come from
+verified against controllers in `backend/src/`; planned routes come from
 `docs/api-contracts.md` and are explicitly labelled.
+
+Backend code/test/script/Prisma paths below are relative to `backend/` unless
+explicitly prefixed. Run backend commands there. Docs and Compose remain at root;
+HTTP paths are unchanged.
 
 ## 1. API Summary
 

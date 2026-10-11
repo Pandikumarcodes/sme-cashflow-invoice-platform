@@ -60,7 +60,14 @@ forecasts or AI is introduced. See docs/api-contracts.md sections 9.15-16.
 
 ## Setup
 
+Independent `backend/` and `frontend/` packages share root `docs/` and
+`docker-compose.yml`. There is no root npm package. All backend npm, Node, Prisma,
+test and worker commands below run from `backend/`; backend feature paths such as
+`src/`, `test/`, `scripts/`, `prisma/` and `dist/` are relative to that directory.
+Frontend commands run from `frontend/`.
+
 ```bash
+cd backend
 npm install
 cp .env.example .env
 ```
@@ -161,7 +168,7 @@ The membership-focused tests are colocated under `src/modules/memberships/domain
 
 ## Configuration
 
-Configuration is validated at startup with Zod. Application code consumes validated Nest configuration rather than reading environment variables throughout the codebase. See [.env.example](.env.example) for the active database, Redis, queue, and application settings. `REDIS_HOST` and `REDIS_PORT` default to `localhost:6379`; username/password are optional and local development requires neither.
+Configuration is validated at startup with Zod. Application code consumes validated Nest configuration rather than reading environment variables throughout the codebase. See [backend/.env.example](backend/.env.example) for the active database, Redis, queue, and application settings. `REDIS_HOST` and `REDIS_PORT` default to `localhost:6379`; username/password are optional and local development requires neither.
 
 Authentication additionally requires an Ed25519 PKCS#8 private key and matching SPKI public key, both provided as base64 DER values. `.env.example` contains a known local-only pair; production must supply securely managed unique keys. Access lifetime defaults to 900 seconds and the absolute refresh-session lifetime to 30 days. JWT issuer, audience, key ID, refresh-cookie name, and Redis rate limits are configurable with the `AUTH_*` settings.
 
@@ -169,7 +176,7 @@ Passwords use Argon2id. Access tokens contain only `sub`, `sid`, `jti`, `iss`, `
 
 ## PostgreSQL and Prisma
 
-Start local PostgreSQL and Redis with `npm run infra:up` (or `docker compose up -d postgres redis`). The local development database is `sme_cashflow`; `sme_cashflow_test` is a separate, dedicated integration-test database. Set their connection strings in your ignored `.env` using the placeholders in `.env.example`.
+From `backend/`, start local PostgreSQL and Redis with `npm run infra:up`. From repository root, use `docker compose --env-file backend/.env -f docker-compose.yml up -d postgres redis`. The local development database is `sme_cashflow`; `sme_cashflow_test` is a separate, dedicated integration-test database. Set their connection strings in ignored `backend/.env` using `backend/.env.example`. The root Compose file, project identity and named volumes are unchanged.
 
 Run `npm run db:generate` after schema changes. Use `npm run db:migrate:dev` to create a reviewed development migration and `npm run db:migrate:deploy` to apply committed migrations. Inspect generated SQL before it is applied; do not use `prisma db push` for normal schema evolution. The initial migration includes PostgreSQL-only financial checks, partial unique indexes, composite tenant foreign keys, and audit append-only protection.
 
@@ -381,3 +388,18 @@ HTTP logs retain request IDs, methods, route templates, statuses and timing; req
 Run npm run build then npm run verify:api-inventory. Run npm run db:migrate:status:test for guarded test migration status; npx prisma migrate status checks the configured development database without modifying it. Keep PostgreSQL integration, E2E and queue suites sequential.
 
 The minimum runtime supports [Node's --env-file-if-exists option](https://nodejs.org/api/cli.html#--env-file-if-existsfile). No dependency major version was changed.
+
+## Frontend foundation
+
+The independent React/TypeScript/Vite application lives in [frontend/](frontend/README.md).
+From that directory, run `npm ci`, copy `.env.example` to `.env`, and run `npm run dev`.
+Open `http://localhost:5173`; the example API URL is `http://localhost:3000/api/v1`.
+Use `localhost` consistently so credentialed requests match the backend's cookie and CORS settings.
+Run frontend typecheck, lint, formatting, isolated tests and production build using its own package scripts.
+The frontend provides a foundation landing page, login/registration, bounded session recovery,
+not-found routes and a minimal protected session page. Business modules and organization navigation remain deferred.
+
+See [backend commands and storage placement](backend/README.md) for relocated API,
+worker, Prisma and guarded test workflows. Existing backend environment values,
+dependencies, build output and private report files are preserved under `backend/`.
+No database migration is needed for this layout change.

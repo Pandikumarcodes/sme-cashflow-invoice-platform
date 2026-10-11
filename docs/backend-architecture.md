@@ -1,5 +1,9 @@
 # Backend Architecture
 
+Repository layout: backend source, tests, scripts, dependencies and configuration
+live in `backend/`. Code paths below are package-relative; shared docs and Compose
+remain at root. Module and runtime boundaries are unchanged by the move.
+
 Prompt 14 implements the eight Invoice routes with pure Decimal calculation,
 an Invoice-specific transaction-scoped lock/number allocator, and narrow exported
 Customer eligibility/Organization settings contracts. The application owns the
