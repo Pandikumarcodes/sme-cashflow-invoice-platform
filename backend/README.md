@@ -15,7 +15,7 @@ npm.cmd run start:dev
 
 Copy the example only during fresh setup; preserve existing local values. `infra:up` uses the unchanged root Compose file and this package's `.env`. From repository root, the equivalent is `docker compose --env-file backend/.env -f docker-compose.yml up -d postgres redis`. Existing named volumes and Compose project remain unchanged. There is no application Dockerfile or container build context.
 
-Nest Config loads this directory's `.env`; worker and infrastructure-backed test scripts also explicitly load it. Prisma discovers this package's `prisma/schema.prisma`, migrations and seed. The frontend stays on `http://localhost:5173`, API on `http://localhost:3000/api/v1`, with unchanged credentialed CORS/cookies.
+Nest Config loads this directory's `.env`; API and worker start scripts explicitly load it with Node as well, so local signing keys and other settings are present before module validation. Run these commands from `backend/`. Worker and infrastructure-backed test scripts also explicitly load it. Prisma discovers this package's `prisma/schema.prisma`, migrations and seed. The frontend stays on `http://localhost:5173`, API on `http://localhost:3000/api/v1`, with unchanged credentialed CORS/cookies.
 
 ```powershell
 npm.cmd run format:check

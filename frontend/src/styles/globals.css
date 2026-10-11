@@ -1,11 +1,18 @@
 * {
   box-sizing: border-box;
 }
+html {
+  min-width: 20rem;
+  background: var(--color-workspace);
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
-  background: var(--color-background);
-  color: var(--color-text);
+  background: var(--color-workspace);
+  color: var(--color-primary-text);
   font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 button,
@@ -14,16 +21,25 @@ select,
 textarea {
   font: inherit;
 }
+button {
+  color: inherit;
+}
+input,
+select,
+textarea {
+  accent-color: var(--color-primary-action);
+}
 a {
   color: var(--color-brand);
+  text-underline-offset: 0.18em;
 }
 :focus-visible {
-  outline: 3px solid var(--color-warning);
+  outline: 3px solid var(--color-primary-action);
   outline-offset: 4px;
 }
 ::selection {
   background: var(--color-accent);
-  color: var(--color-text);
+  color: var(--color-primary-text);
 }
 @media (prefers-reduced-motion: reduce) {
   *,

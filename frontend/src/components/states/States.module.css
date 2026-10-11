@@ -26,3 +26,7 @@
   border: 0;
   cursor: pointer;
 }
+.fallback button:hover,
+.fallback a:hover {
+  background: var(--color-primary-action-hover);
+}

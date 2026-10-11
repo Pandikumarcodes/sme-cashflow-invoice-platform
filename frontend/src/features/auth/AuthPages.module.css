@@ -65,6 +65,7 @@
   position: relative;
 }
 .inputWrap input {
+  display: block;
   width: 100%;
   padding: 0.85rem var(--space-3);
   border: 1px solid var(--color-border);
@@ -72,13 +73,24 @@
   background: var(--color-surface);
   color: var(--color-text);
   min-height: 2.9rem;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.inputWrap input:hover {
+  border-color: #94a3b8;
+}
+.inputWrap input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary-action);
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 16%);
 }
 .inputWrap input[type='password'],
 .inputWrap:has(.toggle) input {
   padding-right: 4rem;
 }
 .inputWrap input[aria-invalid='true'] {
-  border-color: var(--color-error);
+  border-color: var(--color-error-border);
 }
 .toggle {
   position: absolute;
@@ -93,7 +105,7 @@
   font-size: 0.8rem;
 }
 .fieldError {
-  color: var(--color-error);
+  color: var(--color-danger-text);
   font-size: 0.8rem;
   margin: var(--space-2) 0 0;
 }
@@ -155,12 +167,12 @@
   overflow-wrap: anywhere;
 }
 .error {
-  border: 1px solid var(--color-error);
-  color: var(--color-error);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-danger-text);
 }
 .success {
   background: var(--color-success-soft);
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 .loading {
   min-height: 16rem;

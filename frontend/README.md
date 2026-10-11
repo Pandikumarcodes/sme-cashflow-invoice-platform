@@ -53,7 +53,18 @@ Use explicit `responseType: 'text'` or `'blob'` for non-JSON responses. Empty re
 
 The shared QueryClient uses 30-second stale time, five-minute garbage collection, and at most one retry for network/server read failures. Authorization/client errors, malformed responses and cancellation are not retried. Mutations never retry automatically. Query functions must pass their supplied signal into the API client. Query-key helpers can include organization IDs later; no tenant selection or domain queries exist yet.
 
-CSS Modules style components; `src/styles/tokens.css` defines shared colors, typography, spacing, radii, shadows and breakpoints. Authentication forms use React Hook Form with its [Zod resolver](https://github.com/react-hook-form/resolvers). decimal.js-light, date-fns and Recharts remain deferred until a milestone uses them. Frontend TypeScript is isolated from the JavaScript backend.
+CSS Modules style components. The shared Deep Teal visual system lives in `src/styles/tokens.css`; global typography, controls, focus states and reduced-motion rules live in `src/styles/globals.css`. Existing home, login, registration, session and not-found pages consume these tokens through their CSS Modules. The main workspace stays light with blue primary actions. Semantic success, warning and danger text uses darker companion colors for contrast while preserving the approved green, amber and red colors for status marks and fills.
+
+| Role                                  | Token                                                    | Value                             |
+| ------------------------------------- | -------------------------------------------------------- | --------------------------------- |
+| Future authenticated sidebar          | `--color-sidebar` / `--color-sidebar-text`               | `#123C46` / `#FFFFFF`             |
+| Active navigation and primary actions | `--color-navigation-active` / `--color-primary-action`   | `#2563EB`                         |
+| Main workspace and cards              | `--color-workspace` / `--color-card`                     | `#F4F7FB` / `#FFFFFF`             |
+| Primary and secondary text            | `--color-primary-text` / `--color-secondary-text`        | `#17243D` / `#64748B`             |
+| Status colors                         | `--color-success` / `--color-warning` / `--color-danger` | `#10B981` / `#F59E0B` / `#EF4444` |
+| Borders                               | `--color-border`                                         | `#E2E8F0`                         |
+
+Spacing, typography, radii, shadows, focus rings and responsive breakpoints use the same global token set. Form fields retain visible labels and have a consistent border, surface, padding and focus treatment. `--color-sidebar` and `--color-navigation-active` reserve the approved colors for the later organization-aware shell; this foundation does not render a sidebar. Authentication forms use React Hook Form with its [Zod resolver](https://github.com/react-hook-form/resolvers). decimal.js-light, date-fns and Recharts remain deferred until a milestone uses them. Frontend TypeScript is isolated from the JavaScript backend.
 
 ## Authentication and recovery
 

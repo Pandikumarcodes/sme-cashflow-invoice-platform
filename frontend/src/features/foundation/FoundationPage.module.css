@@ -89,7 +89,7 @@
 }
 .ready {
   background: var(--color-success-soft);
-  color: var(--color-brand);
+  color: var(--color-success-text);
   font: 500 0.65rem var(--font-body);
   padding: 0.35rem 0.5rem;
   border-radius: 4rem;
@@ -186,7 +186,7 @@
   gap: var(--space-3);
 }
 .check {
-  color: var(--color-brand);
+  color: var(--color-success-text);
 }
 .principles {
   display: grid;
