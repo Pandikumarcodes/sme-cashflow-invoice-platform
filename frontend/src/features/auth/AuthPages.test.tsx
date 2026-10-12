@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
@@ -14,12 +14,18 @@ import {
   apiRoot,
   authFailure,
   authHandlers,
-  deferred,
+  deferred as makeDeferred,
   testUser,
   tokenResponse,
 } from '../../test/auth-fixtures';
 
 const disposers: (() => void)[] = [];
+const gates: (() => void)[] = [];
+function deferred() {
+  const gate = makeDeferred();
+  gates.push(gate.resolve);
+  return gate;
+}
 function mount(path = '/login', state?: unknown) {
   const query = createQueryClient();
   const session = createSession(query, apiRoot);
@@ -40,7 +46,11 @@ function mount(path = '/login', state?: unknown) {
   return { router, session, query };
 }
 beforeEach(() => server.use(...authHandlers()));
-afterEach(() => disposers.splice(0).forEach((dispose) => dispose()));
+afterEach(() => {
+  cleanup();
+  gates.splice(0).forEach((release) => release());
+  disposers.splice(0).forEach((dispose) => dispose());
+});
 async function enterLogin() {
   await screen.findByLabelText('Email address');
   await userEvent.type(screen.getByLabelText('Email address'), testUser.email);

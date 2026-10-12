@@ -18,6 +18,7 @@
   --color-danger: #ef4444;
   --color-danger-text: #b91c1c;
   --color-border: #e2e8f0;
+  --color-overlay: rgb(23 36 61 / 50%);
 
   /* Compatibility names used by the existing page modules. */
   --color-background: var(--color-workspace);

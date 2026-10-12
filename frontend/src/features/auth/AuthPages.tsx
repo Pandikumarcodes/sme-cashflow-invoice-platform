@@ -294,6 +294,9 @@ export function SessionPage() {
       <p className={styles.subtitle}>
         Business workspace features will arrive in later milestones.
       </p>
+      <p>
+        <Link to="/workspace">Open organization workspace</Link>
+      </p>
       <button
         className={styles.primary}
         disabled={busy}

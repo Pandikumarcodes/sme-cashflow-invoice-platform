@@ -88,36 +88,36 @@ count does not indicate that a database model or service exists.
 | 21 | POST | `/api/v1/organizations/:organizationId/members/:membershipId/reactivate` | Memberships | Bearer + active membership | `membership.suspend` | Reactivates retained membership using `If-Match` | Future frontend: Members page |
 | 22 | DELETE | `/api/v1/organizations/:organizationId/members/:membershipId` | Memberships | Bearer + active membership | `membership.remove` | Marks membership as removed using `If-Match` | Future frontend: Members page |
 | 23 | POST | `/api/v1/organizations/:organizationId/transfer-ownership` | Memberships | Bearer + recent authentication | `organization.transfer_ownership` | Atomically transfers Owner role | Future frontend: organization settings |
-| 24 | POST | `/api/v1/organizations/:organizationId/customers` | Customers | Bearer + active membership | `customer.create` | Creates customer with audit | Future frontend: Customers |
-| 25 | GET | `/api/v1/organizations/:organizationId/customers` | Customers | Bearer + active membership | `customer.read` | Lists/searches customers with cursor pagination | Future frontend: Customers |
-| 26 | GET | `/api/v1/organizations/:organizationId/customers/:customerId` | Customers | Bearer + active membership | `customer.read` | Reads active or archived customer | Future frontend: Customer Details |
-| 27 | PATCH | `/api/v1/organizations/:organizationId/customers/:customerId` | Customers | Bearer + active membership | `customer.update` | Corrects customer fields using `If-Match` | Future frontend: Customer Details |
-| 28 | POST | `/api/v1/organizations/:organizationId/customers/:customerId/archive` | Customers | Bearer + active membership | `customer.archive` | Idempotently archives customer with audit | Future frontend: Customer Details |
-| 29 | POST | `/api/v1/organizations/:organizationId/invoices` | Invoices | Bearer + active membership | `invoice.create` | Create draft invoice | Future frontend: Invoices |
-| 30 | GET | `/api/v1/organizations/:organizationId/invoices` | Invoices | Bearer + active membership | `invoice.read` | List/search invoices | Future frontend: Invoices |
-| 31 | GET | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.read` | Get invoice details | Future frontend: Invoice Details |
-| 32 | PATCH | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.update_draft` | Update draft invoice | Future frontend: Invoice Details |
-| 33 | DELETE | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.delete_draft` | Delete draft invoice | Future frontend: Invoice Details |
-| 34 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/issue` | Invoices | Bearer + active membership | `invoice.issue` | Issue and number invoice | Future frontend: Invoice Details |
-| 35 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/cancel` | Invoices | Bearer + active membership | `invoice.cancel` | Cancel issued invoice without payment history | Future frontend: Invoice Details |
-| 36 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/void` | Invoices | Bearer + active membership | `invoice.void` | Void issued invoice without active payments | Future frontend: Invoice Details |
-| 37 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/payments` | Payments | Bearer + active membership | `payment.create` | Record payment with idempotency | Future frontend: Invoice Details |
-| 38 | GET | `/api/v1/organizations/:organizationId/payments` | Payments | Bearer + active membership | `payment.read` | List/filter payments | Future frontend: Payments |
-| 39 | GET | `/api/v1/organizations/:organizationId/payments/:paymentId` | Payments | Bearer + active membership | `payment.read` | Get payment and reversal | Future frontend: Payments |
-| 40 | POST | `/api/v1/organizations/:organizationId/payments/:paymentId/reverse` | Payments | Bearer + active membership | `payment.reverse` | Reverse payment in full with idempotency | Future frontend: Payments |
-| 41 | GET | `/api/v1/organizations/:organizationId/expense-categories` | Expenses | Bearer + active membership | `expense.read` | List categories | Future frontend: Expenses |
-| 42 | POST | `/api/v1/organizations/:organizationId/expense-categories` | Expenses | Bearer + active membership | `expense_category.manage` | Create category | Future frontend: Expenses |
-| 43 | PATCH | `/api/v1/organizations/:organizationId/expense-categories/:categoryId` | Expenses | Bearer + active membership | `expense_category.manage` | Update category | Future frontend: Expenses |
-| 44 | POST | `/api/v1/organizations/:organizationId/expense-categories/:categoryId/archive` | Expenses | Bearer + active membership | `expense_category.manage` | Archive category | Future frontend: Expenses |
-| 45 | POST | `/api/v1/organizations/:organizationId/expenses` | Expenses | Bearer + active membership | `expense.create` | Create expense | Future frontend: Expenses |
-| 46 | GET | `/api/v1/organizations/:organizationId/expenses` | Expenses | Bearer + active membership | `expense.read` | List expenses | Future frontend: Expenses |
-| 47 | GET | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Expenses | Bearer + active membership | `expense.read` | Read expense | Future frontend: Expenses |
-| 48 | PATCH | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Expenses | Bearer + active membership | `expense.update` | Update expense using If-Match | Future frontend: Expenses |
-| 49 | POST | `/api/v1/organizations/:organizationId/expenses/:expenseId/void` | Expenses | Bearer + active membership | `expense.void` | Void expense using If-Match | Future frontend: Expenses |
-| 50 | GET | `/api/v1/organizations/:organizationId/cash-flow` | Cash Flow | Bearer + active membership | `analytics.read` | Derived cash inflow/outflow/net and chronological series | Future frontend: Cash Flow |
-| 51 | GET | `/api/v1/organizations/:organizationId/profit-loss` | P&L | Bearer + active membership | `analytics.read` | Simplified cash-basis performance and category totals | Future frontend: Profit & Loss |
-| 52 | GET | `/api/v1/organizations/:organizationId/analytics/summary` | Analytics | Bearer + active membership | `analytics.read` | Financial dashboard with explicit issue/payment/as-of cohorts | Future frontend: Dashboard |
-| 53 | GET | `/api/v1/organizations/:organizationId/analytics/receivables-aging` | Analytics | Bearer + active membership | `analytics.read` | Source-derived positive receivables in five overdue buckets | Future frontend: Analytics |
+| 24 | POST | `/api/v1/organizations/:organizationId/customers` | Customers | Bearer + active membership | `customer.create` | Creates customer with audit | Frontend: Customers list/create |
+| 25 | GET | `/api/v1/organizations/:organizationId/customers` | Customers | Bearer + active membership | `customer.read` | Lists/searches customers with cursor pagination | Frontend: Customers list/create |
+| 26 | GET | `/api/v1/organizations/:organizationId/customers/:customerId` | Customers | Bearer + active membership | `customer.read` | Reads active or archived customer | Frontend: Customer detail/edit/archive |
+| 27 | PATCH | `/api/v1/organizations/:organizationId/customers/:customerId` | Customers | Bearer + active membership | `customer.update` | Corrects customer fields using `If-Match` | Frontend: Customer detail/edit/archive |
+| 28 | POST | `/api/v1/organizations/:organizationId/customers/:customerId/archive` | Customers | Bearer + active membership | `customer.archive` | Idempotently archives customer with audit | Frontend: Customer detail/edit/archive |
+| 29 | POST | `/api/v1/organizations/:organizationId/invoices` | Invoices | Bearer + active membership | `invoice.create` | Create draft invoice | Frontend Invoice Management implemented (Prompt 6) |
+| 30 | GET | `/api/v1/organizations/:organizationId/invoices` | Invoices | Bearer + active membership | `invoice.read` | List/search invoices | Frontend Invoice Management implemented (Prompt 6) |
+| 31 | GET | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.read` | Get invoice details | Frontend Invoice Management implemented (Prompt 6) |
+| 32 | PATCH | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.update_draft` | Update draft invoice | Frontend Invoice Management implemented (Prompt 6) |
+| 33 | DELETE | `/api/v1/organizations/:organizationId/invoices/:invoiceId` | Invoices | Bearer + active membership | `invoice.delete_draft` | Delete draft invoice | Frontend Invoice Management implemented (Prompt 6) |
+| 34 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/issue` | Invoices | Bearer + active membership | `invoice.issue` | Issue and number invoice | Frontend Invoice Management implemented (Prompt 6) |
+| 35 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/cancel` | Invoices | Bearer + active membership | `invoice.cancel` | Cancel issued invoice without payment history | Frontend Invoice Management implemented (Prompt 6) |
+| 36 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/void` | Invoices | Bearer + active membership | `invoice.void` | Void issued invoice without active payments | Frontend Invoice Management implemented (Prompt 6) |
+| 37 | POST | `/api/v1/organizations/:organizationId/invoices/:invoiceId/payments` | Payments | Bearer + active membership | `payment.create` | Record payment with idempotency | Frontend Prompt 7 recording from eligible invoice |
+| 38 | GET | `/api/v1/organizations/:organizationId/payments` | Payments | Bearer + active membership | `payment.read` | List/filter payments | Frontend Prompt 7 payment history |
+| 39 | GET | `/api/v1/organizations/:organizationId/payments/:paymentId` | Payments | Bearer + active membership | `payment.read` | Get payment and reversal | Frontend Prompt 7 payment detail |
+| 40 | POST | `/api/v1/organizations/:organizationId/payments/:paymentId/reverse` | Payments | Bearer + active membership | `payment.reverse` | Reverse payment in full with idempotency | Frontend Prompt 7 full reversal |
+| 41 | GET | `/api/v1/organizations/:organizationId/expense-categories` | Expenses | Bearer + active membership | `expense.read` | List categories | Frontend Prompt 8 category directory/choices |
+| 42 | POST | `/api/v1/organizations/:organizationId/expense-categories` | Expenses | Bearer + active membership | `expense_category.manage` | Create category | Frontend Prompt 8 category management |
+| 43 | PATCH | `/api/v1/organizations/:organizationId/expense-categories/:categoryId` | Expenses | Bearer + active membership | `expense_category.manage` | Update category | Frontend Prompt 8 category management |
+| 44 | POST | `/api/v1/organizations/:organizationId/expense-categories/:categoryId/archive` | Expenses | Bearer + active membership | `expense_category.manage` | Archive category | Frontend Prompt 8 category management |
+| 45 | POST | `/api/v1/organizations/:organizationId/expenses` | Expenses | Bearer + active membership | `expense.create` | Create expense | Frontend Prompt 8 expense creation |
+| 46 | GET | `/api/v1/organizations/:organizationId/expenses` | Expenses | Bearer + active membership | `expense.read` | List expenses | Frontend Prompt 8 expense history |
+| 47 | GET | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Expenses | Bearer + active membership | `expense.read` | Read expense | Frontend Prompt 8 expense details |
+| 48 | PATCH | `/api/v1/organizations/:organizationId/expenses/:expenseId` | Expenses | Bearer + active membership | `expense.update` | Update expense using If-Match | Frontend Prompt 8 expense editing |
+| 49 | POST | `/api/v1/organizations/:organizationId/expenses/:expenseId/void` | Expenses | Bearer + active membership | `expense.void` | Void expense using If-Match | Frontend Prompt 8 confirmed void |
+| 50 | GET | `/api/v1/organizations/:organizationId/cash-flow` | Cash Flow | Bearer + active membership | `analytics.read` | Derived cash inflow/outflow/net and chronological series | Frontend Prompt 9 dedicated Cash Flow + shared Dashboard read |
+| 51 | GET | `/api/v1/organizations/:organizationId/profit-loss` | P&L | Bearer + active membership | `analytics.read` | Simplified cash-basis performance and category totals | Frontend Prompt 9 cash-basis Profit & Loss |
+| 52 | GET | `/api/v1/organizations/:organizationId/analytics/summary` | Analytics | Bearer + active membership | `analytics.read` | Financial dashboard with explicit issue/payment/as-of cohorts | Frontend Dashboard implemented (Prompt 4) |
+| 53 | GET | `/api/v1/organizations/:organizationId/analytics/receivables-aging` | Analytics | Bearer + active membership | `analytics.read` | Source-derived positive receivables in five overdue buckets | Frontend Prompt 9 Receivables Aging |
 | 54 | GET | `/api/v1/organizations/:organizationId/notifications` | Notifications | Bearer + active membership + recipient | `notification.read` | Cursor-paginated own inbox | Future frontend: Notifications |
 | 55 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/read` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently mark own notification read | Future frontend: Notifications |
 | 56 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/archive` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently archive own notification | Future frontend: Notifications |
@@ -384,7 +384,7 @@ Frontend/deployment usage: Future frontend: organization settings; browser API.
 All five Customer routes require Bearer authentication, current active Membership
 in an active Organization, and the permission listed above. They use `Customer`,
 `Membership`, `Organization`, and (for writes) `AuditLog`; no Redis/BullMQ work
-is performed. The frontend remains unimplemented.
+is performed. Frontend Prompt 5 implements all five customer operations.
 
 - **POST collection:** creates a customer from required `displayName` and optional
   nullable `customerCode`/`email`; returns 201 Customer and ETag. Tenant, creator,
@@ -706,19 +706,19 @@ append-only protection are unchanged. See api-contracts.md for exact fields.
 |---|---|---|
 | Login | `POST /auth/login`, `/auth/refresh`, `/auth/logout` | Frontend not implemented |
 | Register | `POST /auth/register` | Frontend not implemented |
-| Dashboard | Implemented Cash Flow/P&L and analytics summary | Frontend not implemented |
+| Dashboard | Implemented analytics summary and monthly Cash Flow | Frontend overview implemented (Prompt 4); Prompt 9 shares canonical Cash Flow query keys; isolated tests, no live integration claim |
 | Organization Selector | `GET /organizations`, `POST /organizations` | Frontend not implemented |
 | Organization Settings | `GET/PATCH /organizations/:organizationId`, close, transfer ownership | Frontend not implemented |
 | Members | Member and invitation routes | Frontend not implemented |
-| Customers | Implemented customer collection POST/GET | Frontend not implemented |
-| Customer Details | Implemented customer GET/PATCH/archive | Frontend not implemented |
-| Invoices | Implemented invoice collection routes | Frontend not implemented |
-| Invoice Details | Implemented invoice item/lifecycle and payment recording | Frontend not implemented |
-| Payments | Implemented payment list/detail/reversal | Frontend not implemented |
-| Expenses | Implemented expense/category routes | Frontend not implemented |
-| Cash Flow | Implemented cash-flow route | Frontend not implemented |
-| Profit & Loss | Implemented profit-loss route | Frontend not implemented |
-| Analytics | Implemented summary/receivables-aging routes | Frontend not implemented |
+| Customers | Implemented customer collection POST/GET, detail, PATCH and archive | Frontend Prompt 5 implemented |
+| Customer Details | Implemented customer GET/PATCH/archive | Frontend Prompt 5 implemented; isolated tests, no live integration claim |
+| Invoices | Implemented invoice collection routes | Frontend Prompt 6 list/create implemented |
+| Invoice Details | Implemented invoice item/lifecycle and payment recording | Frontend Prompt 6 invoice operations and Prompt 7 payment recording/history links implemented; isolated tests only |
+| Payments | Implemented payment list/detail/reversal | Frontend Prompt 7 history/detail/record/full reversal implemented; isolated tests only |
+| Expenses | Implemented expense/category routes | Frontend Prompt 8 expense history/create/detail/edit/void and category list/create/edit/archive implemented; isolated tests only |
+| Cash Flow | Implemented cash-flow route | Frontend Prompt 9 day/week/month reports, exact tables and chart |
+| Profit & Loss | Implemented profit-loss route | Frontend Prompt 9 none/month cash-basis reports and category breakdown |
+| Analytics | Implemented summary/receivables-aging routes | Dashboard and Prompt 9 independent as-of aging; five exact aggregate buckets |
 | Notifications | Implemented own inbox/read/archive routes | Frontend not implemented |
 | Reports | Implemented report/export routes | Frontend not implemented |
 | Audit Logs | Implemented audit-log list | Frontend not implemented |
@@ -929,6 +929,6 @@ Do not manually increase the API count without verifying controllers.
 - Final core backend APIs: **65**
 - Implemented modules: **14 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L, Analytics, Notifications, Reports, Audit Logs
 - Financial/report APIs implemented: **33**
-- Frontend implemented: **No**
+- Frontend implemented: **Partial — foundation, authentication, organization context, Dashboard, Customers, Invoices, Payments, Expenses and Financial Analytics (Prompts 1–9)**
 - Backend deployed: **No**
 - Core backend scope: **Prompt 23 is the final core backend prompt; frontend and deployment remain separate work**

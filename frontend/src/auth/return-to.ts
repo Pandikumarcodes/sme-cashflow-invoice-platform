@@ -1,4 +1,5 @@
-// Only the currently implemented protected route is a valid destination.
+import { organizationIdPattern } from '../organizations/contracts';
+// Only implemented local protected routes are valid destinations.
 export function safeReturnTo(value: unknown) {
   if (
     typeof value !== 'string' ||
@@ -12,7 +13,17 @@ export function safeReturnTo(value: unknown) {
       !value.startsWith('/') ||
       value.startsWith('//') ||
       url.origin !== 'https://app.invalid' ||
-      url.pathname !== '/session'
+      !(
+        url.pathname === '/session' ||
+        url.pathname === '/workspace' ||
+        (/^\/organizations\/[^/]+\/(?:workspace|dashboard|cash-flow|profit-loss|receivables-aging|expense-categories|payments(?:\/new|\/[^/]+)?|(?:customers|invoices|expenses)(?:\/new|\/[^/]+(?:\/edit)?)?)$/.test(
+          url.pathname,
+        ) &&
+          organizationIdPattern.test(url.pathname.split('/')[2] ?? '') &&
+          (!url.pathname.split('/')[4] ||
+            url.pathname.split('/')[4] === 'new' ||
+            organizationIdPattern.test(url.pathname.split('/')[4]!)))
+      )
     )
       return '/session';
     return url.pathname + url.search + url.hash;

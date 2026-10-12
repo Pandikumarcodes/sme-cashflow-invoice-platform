@@ -20,10 +20,12 @@
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.104.1",
+    "decimal.js-light": "^2.5.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-hook-form": "^7.89.0",
     "react-router-dom": "^7.18.4",
+    "recharts": "^3.10.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
