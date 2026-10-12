@@ -120,7 +120,7 @@ export function OrganizationProvider({
             queryClient.removeQueries({ queryKey: organizationKeys.scope(accountId, selectedId) });
           }
           void navigate(
-            `/organizations/${id}/${['customers', 'invoices', 'payments', 'expenses', 'expense-categories', 'cash-flow', 'profit-loss', 'receivables-aging'].includes(location.pathname.split('/')[3] ?? '') ? location.pathname.split('/')[3] : location.pathname.endsWith('/dashboard') ? 'dashboard' : 'workspace'}`,
+            `/organizations/${id}/${['customers', 'invoices', 'payments', 'expenses', 'expense-categories', 'cash-flow', 'profit-loss', 'receivables-aging', 'notifications'].includes(location.pathname.split('/')[3] ?? '') ? location.pathname.split('/')[3] : location.pathname.endsWith('/dashboard') ? 'dashboard' : 'workspace'}`,
           );
         },
         retry: () => {

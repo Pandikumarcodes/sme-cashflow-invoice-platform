@@ -118,9 +118,9 @@ count does not indicate that a database model or service exists.
 | 51 | GET | `/api/v1/organizations/:organizationId/profit-loss` | P&L | Bearer + active membership | `analytics.read` | Simplified cash-basis performance and category totals | Frontend Prompt 9 cash-basis Profit & Loss |
 | 52 | GET | `/api/v1/organizations/:organizationId/analytics/summary` | Analytics | Bearer + active membership | `analytics.read` | Financial dashboard with explicit issue/payment/as-of cohorts | Frontend Dashboard implemented (Prompt 4) |
 | 53 | GET | `/api/v1/organizations/:organizationId/analytics/receivables-aging` | Analytics | Bearer + active membership | `analytics.read` | Source-derived positive receivables in five overdue buckets | Frontend Prompt 9 Receivables Aging |
-| 54 | GET | `/api/v1/organizations/:organizationId/notifications` | Notifications | Bearer + active membership + recipient | `notification.read` | Cursor-paginated own inbox | Future frontend: Notifications |
-| 55 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/read` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently mark own notification read | Future frontend: Notifications |
-| 56 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/archive` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently archive own notification | Future frontend: Notifications |
+| 54 | GET | `/api/v1/organizations/:organizationId/notifications` | Notifications | Bearer + active membership + recipient | `notification.read` | Cursor-paginated own inbox | Frontend Prompt 10 inbox, state filters, cursor pagination; unread-on-page count only |
+| 55 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/read` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently mark own notification read | Frontend Prompt 10 explicit recipient read action |
+| 56 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/archive` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently archive own notification | Frontend Prompt 10 confirmed terminal archive |
 | 57 | GET | `/api/v1/organizations/:organizationId/reports/invoices` | Reports | Bearer + active membership | `report.read` | Invoice register preview | Future frontend: Reports |
 | 58 | GET | `/api/v1/organizations/:organizationId/reports/payments` | Reports | Bearer + active membership | `report.read` | Recorded payment preview | Future frontend: Reports |
 | 59 | GET | `/api/v1/organizations/:organizationId/reports/expenses` | Reports | Bearer + active membership | `report.read` | Active expense preview | Future frontend: Reports |
@@ -719,7 +719,7 @@ append-only protection are unchanged. See api-contracts.md for exact fields.
 | Cash Flow | Implemented cash-flow route | Frontend Prompt 9 day/week/month reports, exact tables and chart |
 | Profit & Loss | Implemented profit-loss route | Frontend Prompt 9 none/month cash-basis reports and category breakdown |
 | Analytics | Implemented summary/receivables-aging routes | Dashboard and Prompt 9 independent as-of aging; five exact aggregate buckets |
-| Notifications | Implemented own inbox/read/archive routes | Frontend not implemented |
+| Notifications | Implemented own inbox/read/archive routes | Frontend Prompt 10 implemented; reminder visibility through notifications only, no ReminderDelivery HTTP API/global unread total |
 | Reports | Implemented report/export routes | Frontend not implemented |
 | Audit Logs | Implemented audit-log list | Frontend not implemented |
 
@@ -929,6 +929,6 @@ Do not manually increase the API count without verifying controllers.
 - Final core backend APIs: **65**
 - Implemented modules: **14 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L, Analytics, Notifications, Reports, Audit Logs
 - Financial/report APIs implemented: **33**
-- Frontend implemented: **Partial — foundation, authentication, organization context, Dashboard, Customers, Invoices, Payments, Expenses and Financial Analytics (Prompts 1–9)**
+- Frontend implemented: **Partial — foundation, authentication, organization context, Dashboard, Customers, Invoices, Payments, Expenses, Financial Analytics and Notifications/reminder visibility (Prompts 1–10)**
 - Backend deployed: **No**
 - Core backend scope: **Prompt 23 is the final core backend prompt; frontend and deployment remain separate work**

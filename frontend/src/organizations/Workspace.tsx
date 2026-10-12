@@ -7,7 +7,6 @@ import { OrganizationProvider } from './OrganizationProvider';
 import styles from './Workspace.module.css';
 
 const futureNavigation = [
-  ['Notifications', 'notification.read'],
   ['Reports', 'report.read'],
   ['Audit Logs', 'audit.read'],
   ['Settings', 'organization.update'],
@@ -134,6 +133,15 @@ function Navigation({ close }: { close?: () => void }) {
             {label}
           </NavLink>
         ))}
+      {context.hasPermission('notification.read') && (
+        <NavLink
+          to={`/organizations/${context.selectedId}/notifications`}
+          className={({ isActive }) => (isActive ? styles.active : styles.link)}
+          onClick={close}
+        >
+          Notifications
+        </NavLink>
+      )}
       <NavLink
         to={context.selectedId ? `/organizations/${context.selectedId}/workspace` : '/workspace'}
         className={({ isActive }) => (isActive ? styles.active : styles.link)}

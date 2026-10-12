@@ -16,6 +16,13 @@ export const routes: RouteObject[] = [
       {
         element: <OrganizationShell />,
         children: [
+          {
+            path: '/organizations/:organizationId/notifications',
+            lazy: async () => ({
+              Component: (await import('../features/notifications/NotificationsPage'))
+                .NotificationsPage,
+            }),
+          },
           ...(
             [
               ['cash-flow', 'CashFlowPage'],
