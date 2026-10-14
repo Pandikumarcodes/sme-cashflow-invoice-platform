@@ -3,7 +3,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it } from 'vitest';
+import './CreateOrganizationPage';
 import { AuthProvider } from '../auth/AuthProvider';
 import { createSession } from '../auth/session';
 import { createQueryClient } from '../app/query-client';
@@ -23,9 +24,6 @@ import { createOrganizationSchema, organizationCreationBody } from './create-con
 
 const disposers: (() => void)[] = [];
 const gates: (() => void)[] = [];
-beforeAll(async () => {
-  await import('./CreateOrganizationPage');
-});
 beforeEach(() => {
   localStorage.clear();
   server.use(

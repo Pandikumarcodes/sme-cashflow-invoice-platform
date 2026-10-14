@@ -1,16 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import type { APIRequestContext } from '@playwright/test';
 
 test('live guarded backend: financial workflow, isolation, worker exports and browser session', async ({
   page,
-  playwright,
+  createApi,
 }, testInfo) => {
   test.setTimeout(240_000);
-  const api = await playwright.request.newContext({ baseURL: 'http://localhost:3001/api/v1/' });
-  const outsider = await playwright.request.newContext({
-    baseURL: 'http://localhost:3001/api/v1/',
-  });
+  const api = await createApi();
+  const outsider = await createApi();
   const run = randomUUID();
   const email = `frontend-${run}@example.test`;
   const password = `Readiness-${randomUUID()}!`;
@@ -18,7 +16,10 @@ test('live guarded backend: financial workflow, isolation, worker exports and br
     const registered = await context.post('auth/register', {
       data: { email: address, password, firstName: 'Readiness', lastName: 'Test' },
     });
-    expect(registered.status()).toBe(201);
+    expect(
+      registered.status(),
+      `registration requestId=${registered.headers()['x-request-id'] ?? 'unavailable'}`,
+    ).toBe(201);
     const login = await context.post('auth/login', { data: { email: address, password } });
     expect(login.status()).toBe(200);
     return (await login.json()).data.accessToken as string;
@@ -375,16 +376,14 @@ test('live guarded backend: financial workflow, isolation, worker exports and br
   expect(revoke.status()).toBe(204);
   await page.goto(`/organizations/${a.id}/customers`);
   await expect(page).toHaveURL(/\/login$/);
-  await api.dispose();
-  await outsider.dispose();
 });
 
 test('live guarded backend: browser forms create customer, issue invoice, record payment, expense and CSV', async ({
   page,
-  playwright,
+  createApi,
 }, testInfo) => {
   test.setTimeout(180_000);
-  const api = await playwright.request.newContext({ baseURL: 'http://localhost:3001/api/v1/' });
+  const api = await createApi();
   const run = randomUUID();
   const email = `browser-${run}@example.test`;
   const password = `Browser-${randomUUID()}!`;
@@ -550,5 +549,4 @@ test('live guarded backend: browser forms create customer, issue invoice, record
     path: testInfo.outputPath('live-browser-report-390.png'),
     fullPage: true,
   });
-  await api.dispose();
 });

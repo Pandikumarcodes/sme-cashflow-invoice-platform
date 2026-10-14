@@ -5,13 +5,29 @@ export default defineConfig({
   outputDir: './test-results/live',
   workers: 1,
   retries: 0,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report/live' }]],
+  reporter: [
+    ['list'],
+    [
+      'html',
+      {
+        open: 'never',
+        outputFolder: process.env.REMEDIATION_REPORT_DIRECTORY ?? 'playwright-report/live',
+      },
+    ],
+  ],
   use: {
     baseURL: 'http://localhost:5174',
     trace: 'off',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'edge-live', use: { ...devices['Desktop Edge'], channel: 'msedge' } }],
+  projects: [
+    {
+      name: 'edge-live',
+      use: process.env.CI
+        ? { ...devices['Desktop Chrome'] }
+        : { ...devices['Desktop Edge'], channel: 'msedge' },
+    },
+  ],
   webServer: [
     {
       command: 'node ../frontend/e2e/live-server.mjs',

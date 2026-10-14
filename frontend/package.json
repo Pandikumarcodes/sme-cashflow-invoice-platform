@@ -13,6 +13,8 @@
     "format": "prettier --write . --ignore-path .prettierignore",
     "format:check": "prettier --check . --ignore-path .prettierignore",
     "test": "vitest run",
+    "test:stability": "node scripts/verify-remediation.mjs default 5",
+    "test:stability:single": "node scripts/verify-remediation.mjs single 3",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:live": "playwright test --config playwright.live.config.ts",

@@ -1,0 +1,224 @@
+name: Release verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+      VITE_API_BASE_URL: http://localhost:3000/api/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm ci
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: npm run typecheck && npm run lint && npm run format:check && node scripts/verify-remediation.mjs default && npm run build && npm run size:initial
+        working-directory: frontend
+      - run: npm run lint && npm run format:check && node ../frontend/scripts/verify-remediation.mjs backend-unit && npm run build && npm run verify:api-inventory
+        working-directory: backend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-verification-evidence
+          retention-days: 7
+          path: frontend/test-results/remediation/*.json
+  backend-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL_TEST: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+      DATABASE_URL: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sme_test
+          POSTGRES_PASSWORD: sme_ci_only
+          POSTGRES_DB: sme_cashflow_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U sme_test -d sme_cashflow_test" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: node scripts/prepare-ci-env.js
+        working-directory: backend
+      - run: node --env-file=.env scripts/migrate-test-database.js
+        working-directory: backend
+      - run: npm run db:migrate:status:test && npm run build
+        id: prepare
+        working-directory: backend
+      # Sequential: backend suites clear the same guarded test database.
+      - run: node scripts/verify-remediation.mjs backend-db
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        working-directory: frontend
+      - run: node scripts/verify-remediation.mjs backend-http
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        working-directory: frontend
+      - run: node scripts/verify-remediation.mjs backend-queues
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-integration-evidence
+          retention-days: 7
+          path: frontend/test-results/remediation/*.json
+
+  frontend-stability-default:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: node scripts/verify-remediation.mjs default 5
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-default-evidence
+          retention-days: 7
+          path: frontend/test-results/remediation/*.json
+
+  frontend-stability-single:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: node scripts/verify-remediation.mjs single 3
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-single-evidence
+          retention-days: 7
+          path: frontend/test-results/remediation/*.json
+
+  browser-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: node scripts/verify-remediation.mjs browser
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+      - run: node scripts/verify-remediation.mjs preview
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-verification-evidence
+          retention-days: 7
+          # Simulated browser artifacts only; no live identity or private report data.
+          path: |
+            frontend/test-results/remediation/*.json
+            frontend/test-results/remediation/*-browser-*/browser/
+            frontend/test-results/remediation/*-preview-*/browser/
+
+  live-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL_TEST: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+      DATABASE_URL: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sme_test
+          POSTGRES_PASSWORD: sme_ci_only
+          POSTGRES_DB: sme_cashflow_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U sme_test -d sme_cashflow_test" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: node scripts/prepare-ci-env.js
+        working-directory: backend
+      - run: node --env-file=.env scripts/migrate-test-database.js
+        working-directory: backend
+      - run: npm run db:migrate:status:test && npm run build
+        id: prepare
+        working-directory: backend
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: node scripts/verify-remediation.mjs live 3
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-integration-evidence
+          retention-days: 7
+          path: frontend/test-results/remediation/*.json

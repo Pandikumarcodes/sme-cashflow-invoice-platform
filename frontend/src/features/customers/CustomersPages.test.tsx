@@ -1,10 +1,11 @@
 import { StrictMode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+import './CustomersPages';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
@@ -14,7 +15,7 @@ import {
   apiRoot,
   authHandlers,
   authFailure,
-  deferred,
+  deferred as makeDeferred,
   testUser,
   tokenResponse,
 } from '../../test/auth-fixtures';
@@ -54,6 +55,12 @@ const page = (request: Request, data = [customer], nextCursor: string | null = n
     },
   });
 const dispose: (() => void)[] = [];
+const gates: (() => void)[] = [];
+function deferred() {
+  const gate = makeDeferred();
+  gates.push(gate.resolve);
+  return gate;
+}
 let reads: URL[];
 function mount(suffix = '', org = a.id) {
   const query = createQueryClient();
@@ -104,7 +111,9 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  cleanup();
   dispose.splice(0).forEach((f) => f());
+  gates.splice(0).forEach((release) => release());
   vi.restoreAllMocks();
 });
 it('renders the lazy directory, accessible actions and scoped filter keys without totals', async () => {

@@ -7,13 +7,29 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  reporter: [
+    ['list'],
+    [
+      'html',
+      {
+        open: 'never',
+        outputFolder: process.env.REMEDIATION_REPORT_DIRECTORY ?? 'playwright-report',
+      },
+    ],
+  ],
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'edge', use: { ...devices['Desktop Edge'], channel: 'msedge' } }],
+  projects: [
+    {
+      name: 'edge',
+      use: process.env.CI
+        ? { ...devices['Desktop Chrome'] }
+        : { ...devices['Desktop Edge'], channel: 'msedge' },
+    },
+  ],
   webServer: {
     command: 'npm run build && npm run preview',
     url: 'http://localhost:4173',

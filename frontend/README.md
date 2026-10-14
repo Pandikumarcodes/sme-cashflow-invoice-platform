@@ -50,6 +50,40 @@ npm run test:e2e:preview
 
 Playwright uses installed Microsoft Edge (`msedge`). Install Edge on browser-test hosts; no browser binary is committed. `test:e2e` uses transport simulation confined to Playwright, independent of PostgreSQL/Redis. It covers 21 routes at 320, 375, 390, 768, 1024, 1280, 1440 and 1920 px, axe checks, navigation, dialogs and downloads. Vitest remains restricted to `src/**/*.test.{ts,tsx}`. These simulations do not prove backend authentication, financial correctness or worker delivery.
 
+CI uses Playwright Chromium (`npx playwright install --with-deps chromium`); local
+execution retains installed Edge. The fast and isolated integration jobs live in
+`.github/workflows/verification.yml`. The integration job runs database suites,
+unit repetitions and browsers sequentially, with no browser retries.
+
+Bounded remediation commands, from this directory:
+
+```powershell
+node scripts/verify-remediation.mjs focused
+node scripts/verify-remediation.mjs default 5
+node scripts/verify-remediation.mjs single 3
+node scripts/verify-remediation.mjs live 3
+node scripts/verify-remediation.mjs browser
+node scripts/verify-remediation.mjs preview
+```
+
+Each attempt writes uniquely named ignored logs and JSON metadata to
+`test-results/remediation/`, recording timestamps, monotonic duration, deadlines,
+exit status, workers, summaries and any timeout termination attempt. Unit runs
+have a five-minute command budget; live runs have eight minutes. A batch retains
+failed attempts, returns failure if any attempt fails, and stops after a command
+timeout. If tree termination fails, `.pending-cleanup` blocks further test runs.
+Inspect command lines and creation times, stop only confirmed owned processes,
+and remove that ignored marker only after verifying cleanup. In a restricted
+Windows automation environment, browser/process termination may require an
+approved command outside the sandbox; never reuse an orphaned server to obtain
+a passing result. Do not run heavy batches concurrently or backend clearing suites during
+live journeys. Live request contexts are now fixture-owned and released even on
+assertion/setup failure. Live 5xx diagnostics contain only static categories,
+request IDs, timestamps and status; original error mapping is preserved.
+
+See [production readiness remediation](../docs/production-readiness-remediation.md)
+for actual outcomes and open gates. This workflow does not deploy the application.
+
 `test:e2e:live` starts the existing compiled backend API and worker on localhost:3001 and Vite on localhost:5174. It refuses reuse of either port, production configuration, missing `DATABASE_URL_TEST`, remote databases and any database other than `sme_cashflow_test`. It never falls back to `DATABASE_URL`, seeds through Prisma, truncates tables, applies migrations or changes backend code. Prepare infrastructure before running it:
 
 ```powershell
@@ -295,3 +329,16 @@ Live smoke checks found liveness and PostgreSQL/Redis readiness HTTP 200, and an
 Final Prompt 11 verification: **548 tests / 27 suites** pass in both `npm.cmd run test` and `npm.cmd run test -- --pool=forks --maxWorkers=1`, preserving the 479-test baseline and adding 69 tests. Typecheck, ESLint, Prettier check, production build and root `git diff --check` pass. An initial default run had three existing Invoice/Dashboard/Financial Analytics timing failures; unchanged reruns passed without timeout or test-configuration changes. An early new test expected the wrong empty-state copy and was corrected; new test typing mistakes were also fixed.
 
 Production output: initial JS **516.82 → 522.40 kB** (+5.58 kB, 161.40 kB gzip after); lazy Reports **16.64 kB** (5.59 kB gzip), lazy Audit Logs **9.24 kB** (3.61 kB gzip), shared Reports/Audit CSS **2.59 kB** (0.83 kB gzip). Feature implementations remain behind dynamic routes; no report-generation/download library, chart dependency or manual chunking change was added. The existing initial-chunk >500 kB warning remains; Vite also emitted an informational CSS-plugin timing notice.
+
+## Repeatable test verification
+
+From `frontend/`, `npm run test:stability` requests five bounded full default-suite
+runs; `npm run test:stability:single` requests three explicit single-worker runs.
+Windows defaults to one isolated fork; other platforms retain two workers.
+The verification runner holds a temporary Windows system/display awake request
+for its batch and releases it on completion or owner exit. It does not change
+the power plan or execution policy. Each attempt retains logs, clocks, counts,
+resource observations and cleanup evidence under ignored `test-results/remediation/`.
+Ordinary `npm run test` has no awake guard; standby can invalidate a timing run.
+See [frontend test stability](../docs/frontend-test-stability.md) for results,
+failed attempts and limitations.
