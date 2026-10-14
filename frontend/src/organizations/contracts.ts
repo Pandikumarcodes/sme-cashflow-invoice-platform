@@ -35,6 +35,11 @@ export function parseOrganizations(body: unknown): Organization[] {
     (item) => item.status === 'ACTIVE' && item.membership.status === 'ACTIVE',
   );
 }
+export function parseCreatedOrganization(body: unknown): Organization {
+  const parsed = z.object({ data: organization }).safeParse(body);
+  if (!parsed.success) return invalid();
+  return parsed.data.data;
+}
 export function parseOrganization(body: unknown, expectedId: string): Organization {
   const parsed = z.object({ data: organization }).safeParse(body);
   if (!parsed.success || parsed.data.data.id !== expectedId) return invalid();

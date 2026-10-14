@@ -3,7 +3,6 @@ import { FoundationLayout } from '../components/layout/FoundationLayout';
 import { RouteError } from '../components/states/RouteError';
 import { FoundationPage } from '../features/foundation/FoundationPage';
 import { NotFoundPage } from '../features/foundation/PlaceholderPage';
-import { LoginPage, RegisterPage, SessionPage } from '../features/auth/AuthPages';
 import { ProtectedRoute, SessionLoading } from '../auth/ProtectedRoute';
 import { OrganizationShell, OrganizationWorkspace } from '../organizations/Workspace';
 
@@ -16,6 +15,25 @@ export const routes: RouteObject[] = [
       {
         element: <OrganizationShell />,
         children: [
+          {
+            path: '/organizations/new',
+            lazy: async () => ({
+              Component: (await import('../organizations/CreateOrganizationPage'))
+                .CreateOrganizationPage,
+            }),
+          },
+          {
+            path: '/organizations/:organizationId/reports',
+            lazy: async () => ({
+              Component: (await import('../features/reports/ReportsPage')).ReportsPage,
+            }),
+          },
+          {
+            path: '/organizations/:organizationId/audit-logs',
+            lazy: async () => ({
+              Component: (await import('../features/audit/AuditLogsPage')).AuditLogsPage,
+            }),
+          },
           {
             path: '/organizations/:organizationId/notifications',
             lazy: async () => ({
@@ -111,12 +129,29 @@ export const routes: RouteObject[] = [
   },
   {
     element: <FoundationLayout />,
+    hydrateFallbackElement: <SessionLoading />,
     errorElement: <RouteError />,
     children: [
       { path: '/', element: <FoundationPage /> },
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
-      { element: <ProtectedRoute />, children: [{ path: '/session', element: <SessionPage /> }] },
+      ...(['login', 'register'] as const).map((path) => ({
+        path: `/${path}`,
+        lazy: async () => ({
+          Component: (await import('../features/auth/AuthPages'))[
+            path === 'login' ? 'LoginPage' : 'RegisterPage'
+          ],
+        }),
+      })),
+      {
+        element: <ProtectedRoute />,
+        children: [
+          {
+            path: '/session',
+            lazy: async () => ({
+              Component: (await import('../features/auth/AuthPages')).SessionPage,
+            }),
+          },
+        ],
+      },
       { path: '/404', element: <NotFoundPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

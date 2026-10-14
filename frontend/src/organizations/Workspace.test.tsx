@@ -191,8 +191,10 @@ it('switches tenants, removes old scoped cache and hides forbidden future naviga
   expect(query.getQueriesData({ queryKey: organizationKeys.scope(testUser.id, a.id) })).toEqual([]);
   expect(screen.queryByText('Payments')).not.toBeInTheDocument();
   expect(screen.queryByText('Audit Logs')).not.toBeInTheDocument();
-  expect(screen.getByText('Reports')).toHaveAttribute('aria-disabled', 'true');
-  expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute(
+    'href',
+    `/organizations/${b.id}/reports`,
+  );
   expect(screen.getByRole('link', { name: 'Cash Flow' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Expenses' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Invoices' })).toBeInTheDocument();

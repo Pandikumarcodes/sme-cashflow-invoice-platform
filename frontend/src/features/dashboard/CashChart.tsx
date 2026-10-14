@@ -55,7 +55,12 @@ export function CashChart({ cash }: { cash: CashFlow }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className={styles.tableWrap}>
+          <div
+            className={styles.tableWrap}
+            role="region"
+            aria-label="Exact monthly cash values"
+            tabIndex={0}
+          >
             <table>
               <caption>Exact monthly cash values ({cash.meta.currency})</caption>
               <thead>

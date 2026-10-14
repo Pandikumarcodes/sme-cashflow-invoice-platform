@@ -139,7 +139,11 @@
     width: 100%;
   }
   .table thead {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
   .table tr {
     padding-block: var(--space-3);

@@ -61,11 +61,15 @@ export function OrganizationProvider({
       ),
   });
   useEffect(() => {
-    if (!selectedId && organizations.length) {
+    if (
+      !selectedId &&
+      organizations.length &&
+      location.pathname.replace(/\/$/, '') !== '/organizations/new'
+    ) {
       const id = organizations.find((o) => o.id === hint)?.id ?? organizations[0]!.id;
       void navigate(`/organizations/${id}/workspace`, { replace: true });
     }
-  }, [selectedId, organizations, hint, navigate]);
+  }, [selectedId, organizations, hint, navigate, location.pathname]);
   // URL changes (including browser history) abort/remove the old tenant's complete cache scope.
   useEffect(() => {
     if (!selectedId) return;
@@ -108,6 +112,21 @@ export function OrganizationProvider({
         organization,
         membership: organization?.membership,
         permissions,
+        activateCreatedOrganization: async (id, signal) => {
+          // Creation responses never grant access: reload the authenticated account's memberships.
+          const verified = await list.refetch({ cancelRefetch: true });
+          if (signal.aborted) throw new DOMException('Request cancelled.', 'AbortError');
+          if (verified.isError || !verified.data?.some((item) => item.id === id))
+            throw new Error('Organization access could not be verified.');
+          if (selectedId) {
+            await queryClient.cancelQueries({
+              queryKey: organizationKeys.scope(accountId, selectedId),
+            });
+            queryClient.removeQueries({ queryKey: organizationKeys.scope(accountId, selectedId) });
+          }
+          if (signal.aborted) throw new DOMException('Request cancelled.', 'AbortError');
+          await navigate(`/organizations/${id}/dashboard`, { replace: true });
+        },
         hasPermission: (permission) =>
           status === 'ready' && permissions.includes(permission as Permission),
         switchOrganization: (id) => {
@@ -120,7 +139,7 @@ export function OrganizationProvider({
             queryClient.removeQueries({ queryKey: organizationKeys.scope(accountId, selectedId) });
           }
           void navigate(
-            `/organizations/${id}/${['customers', 'invoices', 'payments', 'expenses', 'expense-categories', 'cash-flow', 'profit-loss', 'receivables-aging', 'notifications'].includes(location.pathname.split('/')[3] ?? '') ? location.pathname.split('/')[3] : location.pathname.endsWith('/dashboard') ? 'dashboard' : 'workspace'}`,
+            `/organizations/${id}/${['customers', 'invoices', 'payments', 'expenses', 'expense-categories', 'cash-flow', 'profit-loss', 'receivables-aging', 'notifications', 'reports', 'audit-logs'].includes(location.pathname.split('/')[3] ?? '') ? location.pathname.split('/')[3] : location.pathname.endsWith('/dashboard') ? 'dashboard' : 'workspace'}`,
           );
         },
         retry: () => {

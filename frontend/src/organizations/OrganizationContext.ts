@@ -12,6 +12,7 @@ export type OrganizationContextValue = {
   permissions: readonly Permission[];
   hasPermission: (permission: string) => boolean;
   switchOrganization: (id: string) => void;
+  activateCreatedOrganization: (id: string, signal: AbortSignal) => Promise<void>;
   retry: () => void;
   clearSelection: () => void;
 };

@@ -1,16 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { SessionLoading } from '../auth/ProtectedRoute';
 import { useOrganization } from './OrganizationContext';
 import { OrganizationProvider } from './OrganizationProvider';
 import styles from './Workspace.module.css';
 
-const futureNavigation = [
-  ['Reports', 'report.read'],
-  ['Audit Logs', 'audit.read'],
-  ['Settings', 'organization.update'],
-] as const;
+const futureNavigation = [['Settings', 'organization.update']] as const;
 export function OrganizationShell() {
   const { user } = useAuth();
   if (!user) return <SessionLoading />;
@@ -142,6 +138,22 @@ function Navigation({ close }: { close?: () => void }) {
           Notifications
         </NavLink>
       )}
+      {(['Reports', 'Audit Logs'] as const)
+        .filter((label) =>
+          label === 'Reports'
+            ? context.hasPermission('report.read') || context.hasPermission('report.export')
+            : context.hasPermission('audit.read'),
+        )
+        .map((label) => (
+          <NavLink
+            key={label}
+            to={`/organizations/${context.selectedId}/${label === 'Reports' ? 'reports' : 'audit-logs'}`}
+            className={({ isActive }) => (isActive ? styles.active : styles.link)}
+            onClick={close}
+          >
+            {label}
+          </NavLink>
+        ))}
       <NavLink
         to={context.selectedId ? `/organizations/${context.selectedId}/workspace` : '/workspace'}
         className={({ isActive }) => (isActive ? styles.active : styles.link)}
@@ -298,9 +310,12 @@ export function OrganizationWorkspace() {
       <section className={styles.card}>
         <h1>No organizations yet</h1>
         <p>
-          Your account has no active organization memberships. Contact an organization administrator
-          about an invitation.
+          Create an organization to start managing your business finances, or contact an
+          organization administrator about an invitation to an existing workspace.
         </p>
+        <Link className={styles.createAction} to="/organizations/new">
+          Create Organization
+        </Link>
       </section>
     );
   if (context.status !== 'ready')

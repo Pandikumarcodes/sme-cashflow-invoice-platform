@@ -50,6 +50,6 @@ it('allows only implemented organization destinations after sign-in', () => {
   expect(safeReturnTo('/workspace')).toBe('/workspace');
   expect(safeReturnTo('/organizations/invalid/workspace')).toBe('/session');
   expect(safeReturnTo('/organizations/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reports')).toBe(
-    '/session',
+    '/organizations/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reports',
   );
 });

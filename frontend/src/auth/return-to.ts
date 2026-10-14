@@ -16,7 +16,8 @@ export function safeReturnTo(value: unknown) {
       !(
         url.pathname === '/session' ||
         url.pathname === '/workspace' ||
-        (/^\/organizations\/[^/]+\/(?:workspace|dashboard|notifications|cash-flow|profit-loss|receivables-aging|expense-categories|payments(?:\/new|\/[^/]+)?|(?:customers|invoices|expenses)(?:\/new|\/[^/]+(?:\/edit)?)?)$/.test(
+        /^\/organizations\/new\/?$/.test(url.pathname) ||
+        (/^\/organizations\/[^/]+\/(?:workspace|dashboard|notifications|reports|audit-logs|cash-flow|profit-loss|receivables-aging|expense-categories|payments(?:\/new|\/[^/]+)?|(?:customers|invoices|expenses)(?:\/new|\/[^/]+(?:\/edit)?)?)$/.test(
           url.pathname,
         ) &&
           organizationIdPattern.test(url.pathname.split('/')[2] ?? '') &&

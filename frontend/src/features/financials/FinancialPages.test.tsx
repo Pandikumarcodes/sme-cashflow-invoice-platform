@@ -4,12 +4,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
 import { routes } from '../../routes/routes';
 import { server } from '../../test/server';
+import { routerReady } from '../../test/router-ready';
 import {
   apiRoot,
   authHandlers,
@@ -24,6 +25,9 @@ import { cashReport, profitReport, agingReport } from './test-fixtures';
 import { type CashGrouping, type ProfitGrouping } from './contracts';
 import { financialKeys } from './query-keys';
 const disposers: (() => void)[] = [];
+beforeAll(async () => {
+  await import('./FinancialPages');
+});
 const gates: (() => void)[] = [];
 let requested: URL[] = [];
 const path = (kind = 'cash-flow', id = a.id) => `/organizations/${id}/${kind}`;
@@ -96,7 +100,8 @@ afterEach(() => {
   localStorage.clear();
 });
 it('renders exact cash totals, negative net, chart and accessible table', async () => {
-  mount();
+  const { router } = mount();
+  await routerReady(router);
   const summary = await ready();
   expect(within(summary).getByText(/12,345,678,901,234,567,890.10/)).toBeInTheDocument();
   expect(within(summary).getByText(/-\$10.15/)).toBeInTheDocument();

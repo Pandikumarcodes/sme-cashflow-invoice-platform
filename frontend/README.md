@@ -3,6 +3,7 @@
 React, TypeScript and Vite application for the SME Cash Flow platform. The application includes authentication, session recovery, organization navigation, a financial dashboard, Customers, Invoices, Payments with full reversals, Expenses with category management, and dedicated financial analytics. Other business modules remain deferred.
 
 Notifications and reminder visibility are implemented in Prompt 10; see the integration notes below.
+Reports, CSV downloads and read-only Audit Logs are implemented in Prompt 11.
 
 ## Local development
 
@@ -30,7 +31,56 @@ npm run build
 
 MSW runs only in Vitest's Node test environment. Tests require no backend, PostgreSQL or Redis. There is no browser service worker or production mock.
 
+## Final hardening and browser verification
+
+The main simulated browser suite builds and serves compiled assets on localhost:4173. This avoids development-server connection/reload interference with axe scans and verifies the actual lazy chunks. The preview-only smoke command reuses the existing build and refuses to reuse a running server.
+
+See [frontend production readiness](../docs/frontend-production-readiness.md) for executed checks, limitations and the release verdict. Run heavyweight suites sequentially on this workstation; concurrent browser accessibility scans and component tests have produced severe timing failures. No component test timeout was raised.
+
+```powershell
+# From frontend/
+npm run test
+npm run test -- --pool=forks --maxWorkers=1
+npm run test:e2e
+npm run test:e2e:live
+npm run build
+npm run size:initial
+npm run test:e2e:preview
+```
+
+Playwright uses installed Microsoft Edge (`msedge`). Install Edge on browser-test hosts; no browser binary is committed. `test:e2e` uses transport simulation confined to Playwright, independent of PostgreSQL/Redis. It covers 21 routes at 320, 375, 390, 768, 1024, 1280, 1440 and 1920 px, axe checks, navigation, dialogs and downloads. Vitest remains restricted to `src/**/*.test.{ts,tsx}`. These simulations do not prove backend authentication, financial correctness or worker delivery.
+
+`test:e2e:live` starts the existing compiled backend API and worker on localhost:3001 and Vite on localhost:5174. It refuses reuse of either port, production configuration, missing `DATABASE_URL_TEST`, remote databases and any database other than `sme_cashflow_test`. It never falls back to `DATABASE_URL`, seeds through Prisma, truncates tables, applies migrations or changes backend code. Prepare infrastructure before running it:
+
+```powershell
+# From backend/; existing ignored .env must contain DATABASE_URL_TEST
+# Use existing healthy services; infra:up is needed only when Docker is available and services are absent.
+npm run infra:up
+npm run db:migrate:status:test
+# If committed migrations need applying, inspect their SQL first:
+node --env-file=.env scripts/migrate-test-database.js
+npm run build
+# Then from frontend/
+npm run test:e2e:live
+```
+
+The live launcher reads ignored `backend/.env`, validates the test target, and uses ephemeral signing keys, a separate HttpOnly cookie name, random queue/rate-limit namespaces, disabled external email and an ignored private report directory. Test accounts, organizations and financial history are created only through normal authenticated HTTP APIs with random runtime credentials and synthetic `example.test` data. Rows and generated report artifacts are retained in the test environment; this fixture does not delete history. Do not run backend database/E2E/queue suites concurrently because their helpers clear the same test database.
+
+Required configuration names are `DATABASE_URL_TEST`, the existing `REDIS_*` settings and the backend's validated `AUTH_*` settings. Production still requires its own signing keys and infrastructure. `VITE_API_BASE_URL` is the frontend's only public build setting. The launcher supplies the isolated port, origin, cookie, queue and report-storage configuration; it leaves the development API on port 3000 untouched. The API and worker share private storage. The actual report worker must run for READY/download verification.
+
+Browser output is ignored under `test-results/` and `playwright-report/`; simulated and live artifacts have separate directories. Live traces are disabled to avoid recording credentials or report responses. Do not publish local traces, screenshots or reports without review. A cross-origin CSV download uses `report-<exportId>.csv` when the existing backend CORS policy does not expose `Content-Disposition`.
+
+`size:initial` measures the entry module and recursively follows static JavaScript imports, excluding dynamically loaded routes. Report this aggregate alongside entry/chunk sizes; a split entry file alone is not the initial transfer cost.
+
+After building, `test:e2e:preview` runs the sign-in/recovery/logout and CSV-download browser smoke tests against compiled assets on localhost:4173, with simulated API responses. This verifies production lazy imports and SPA deep paths locally; it does not deploy or test production infrastructure.
+
 ## Contracts and extension points
+
+### Organization onboarding
+
+An authenticated account with no active organizations can choose **Create Organization** in `/workspace`. The form at `/organizations/new` sends legal business name, optional display name, supported base currency and valid timezone to the existing `POST /organizations` endpoint. Organization creation is an authenticated-user capability; it does not require an existing tenant membership or a tenant permission. The backend creates the active Owner membership and defaults atomically.
+
+After creation, the organization provider re-fetches the account-scoped active membership list before navigating to the new Dashboard. The existing detail check and permission map control the sidebar. If verification fails, retry checks access without repeating creation. Session changes abort stale requests and clear account/tenant caches. Invitation-based access remains available through the existing backend; this change adds no invitation management UI. Organization creation is not automatically retried because this backend route does not implement idempotent creation receipts. Network failures, malformed success responses and server errors block resubmission in the form and direct the user back to the workspace to check whether creation succeeded.
 
 `src/api/client.ts` accepts resource paths such as `/health`, relative to the configured `/api/v1` root. Responses retain their complete body, status, headers and request ID; `{data}` and `{data,meta}` envelopes are not unwrapped. Decimal strings, business date strings and opaque cursor metadata are preserved.
 
@@ -62,7 +112,7 @@ CSS Modules style components. The shared Deep Teal visual system lives in `src/s
 | Future authenticated sidebar          | `--color-sidebar` / `--color-sidebar-text`               | `#123C46` / `#FFFFFF`             |
 | Active navigation and primary actions | `--color-navigation-active` / `--color-primary-action`   | `#2563EB`                         |
 | Main workspace and cards              | `--color-workspace` / `--color-card`                     | `#F4F7FB` / `#FFFFFF`             |
-| Primary and secondary text            | `--color-primary-text` / `--color-secondary-text`        | `#17243D` / `#64748B`             |
+| Primary and secondary text            | `--color-primary-text` / `--color-secondary-text`        | `#17243D` / `#59697F`             |
 | Status colors                         | `--color-success` / `--color-warning` / `--color-danger` | `#10B981` / `#F59E0B` / `#EF4444` |
 | Borders                               | `--color-border`                                         | `#E2E8F0`                         |
 
@@ -88,12 +138,12 @@ All authentication POSTs send JSON, including `{}` for refresh/logout. Login fai
 - `GET /organizations` returns `{data: OrganizationSummary[]}` for all active memberships in active organizations. It is intentionally unpaginated; no search, cursor, limit or pagination metadata is sent or assumed. The native labelled select includes every returned organization and supports browser keyboard navigation and scrolling.
 - `GET /organizations/:organizationId` freshly rechecks tenant access and returns organization details and the caller's membership. Nonmembership/inactive access is concealed as 404; a permission rejection is 403. Neither endpoint returns an effective-permissions array. `permissions.ts` mirrors the actual backend canonical role map solely for UI hints; backend checks remain authoritative. Unknown roles and permissions fail closed. JWTs are never decoded for tenant authority.
 - `OrganizationProvider` coordinates URL selection and reads TanStack Query data through the existing authenticated session transport. Context exposes the resolved organization, membership, permission hints, access state, switching and explicit retry. Lists and permissions are not duplicated into independent long-lived state. Loading is distinct from confirmed denial. A scoped unavailable ID never silently selects another organization.
-- The account-specific `sme.organization.<userId>` localStorage value contains only a selected UUID. It is a hint: a fresh list and detail check must validate it. Invalid/revoked hints fall back to the first freshly accessible organization only at `/workspace`. An empty list stays empty with invitation guidance. Storage failures do not block selection. Workspace sign-out removes that account's hint.
+- The account-specific `sme.organization.<userId>` localStorage value contains only a selected UUID. It is a hint: a fresh list and detail check must validate it. Invalid/revoked hints fall back to the first freshly accessible organization only at `/workspace`. An empty list offers organization creation and invitation guidance. Storage failures do not block selection. Workspace sign-out removes that account's hint.
 - `organizationKeys.list(accountId)` isolates lists; `scope(accountId, organizationId)` is the prefix for all future tenant data; `context(accountId, organizationId)` isolates membership detail. Switching and browser history cancel/remove the old tenant scope. Account changes remount the provider and the existing session controller aborts requests and clears all caches. Pass Query's cancellation signal through `session.request`; never use previous-tenant placeholder data.
 - Access queries use zero stale/unused retention time, no automatic failure retries, and refetch on mount, focus, reconnect and every 60 seconds while successful. Permissions and workspace content are withheld during revalidation or errors. Failed detail authorization waits for an explicit retry or a new selection. This is not instantaneous server-pushed revocation: future commands still require backend authorization on every request.
 - The Deep Teal desktop sidebar becomes a modal drawer below 48rem. The drawer locks body scrolling, moves and traps keyboard focus, closes on Escape/backdrop/navigation, restores trigger focus and makes background content inert. It closes when resized to desktop. Workspace navigation uses `aria-current`; sidebar focus outlines use white for contrast.
 
-Tests use MSW and React Testing Library for account/tenant isolation, selection persistence, races, revocation, permission denial, many organizations, empty/error/retry states and drawer keyboard behavior. This milestone does not claim a live backend/browser integration run or implement organization creation, membership administration or financial features.
+Tests use MSW and React Testing Library for account/tenant isolation, selection persistence, races, revocation, permission denial, many organizations, empty/error/retry states and drawer keyboard behavior. Onboarding regression coverage includes creation, membership verification, navigation, safe errors and stale account responses. The focused live browser scenario is `e2e/live/onboarding.spec.ts`; run it with `npm run test:e2e:live -- onboarding.spec.ts` against the guarded test environment described above. Membership administration remains outside this frontend scope.
 
 ## Financial dashboard (Prompt 4)
 
@@ -214,10 +264,34 @@ Links resolve only structured `relatedEntityType`/`relatedEntityId` for implemen
 
 **ReminderDelivery is not directly exposed via HTTP. Reminder visibility is provided through reminder-related notifications only.** INVOICE_DUE_SOON and INVOICE_OVERDUE show their reminder labels, body, structured invoice link, creation timestamp and scheduledAt where returned. ScheduledAt is not described as an email sent time. SYSTEM notifications remain readable, including backend-provided operational messages, without inferring an internal delivery state. Reminder status/history, provider IDs, attempts, retry/send/schedule/cancel controls, preferences and frontend schedulers are omitted because no supported HTTP contract exposes them.
 
-Queries use account/tenant/filter/cursor keys and abort signals, with no previous-tenant placeholder. Membership revalidation withholds rows; switching removes old scope, aborts reads/commands and preserves the Notifications route with reset filters. Logout/session replacement clears QueryClient state. Deep Teal tokens, wrapping cards/filters, accessible unread text, labelled links/actions, loading/error/empty states and keyboard archive-confirmation focus are reused. No new dependency or persistent client store is added. Backend source/schema/migrations/API contracts remain unchanged. Reports/download/Audit UI (Prompt 11) and the application-wide Prompt 12 audit remain deferred.
+Queries use account/tenant/filter/cursor keys and abort signals, with no previous-tenant placeholder. Membership revalidation withholds rows; switching removes old scope, aborts reads/commands and preserves the Notifications route with reset filters. Logout/session replacement clears QueryClient state. Deep Teal tokens, wrapping cards/filters, accessible unread text, labelled links/actions, loading/error/empty states and keyboard archive-confirmation focus are reused. No new dependency or persistent client store is added. Backend source/schema/migrations/API contracts remain unchanged. The application-wide Prompt 12 audit remains deferred; Reports/download/Audit UI is implemented below.
 
 Verification: **479 tests / 23 suites** pass in both `npm.cmd run test` and `npm.cmd run test -- --pool=forks --maxWorkers=1`: all original 411 tests plus 34 notification contract/unit and 34 RTL/MSW tests. Coverage includes exact requests, opaque pagination, statuses/timestamps, unknown types, reminder/resource links, conditional read/archive, repeat-safe recovery, notification-only invalidation, permission denial, filter/tenant cancellation, authentication expiry, logout and later-account isolation. An initial focused worker-start timeout and default-run session-loading timing failures passed unchanged reruns; no original tests, assertions, timeouts or test configuration were modified. Typecheck, ESLint, Prettier check, production build and root diff whitespace checks pass.
 
 Production output: Notifications JS **11.03 kB** (4.03 kB gzip), route CSS **2.27 kB** (0.73 kB gzip), initial JS **516.32 → 516.82 kB** (+0.50 kB; 160.17 kB gzip after). Notifications remains lazy and adds no chart dependency. The existing initial-chunk >500 kB warning remains; Vite also emitted an informational CSS-plugin timing notice on this build.
 
 Live smoke verification was limited to the already-running backend's configured port: liveness and PostgreSQL/Redis readiness returned HTTP 200, and an unauthenticated notification list returned HTTP 401 with the standard error envelope. A second startup encountered EADDRINUSE; the existing instance was left untouched. Backend environment validation and Babel compilation passed. No authenticated recipient/reminder fixture was available for live list/read/archive/navigation verification. Manual browser verification was not performed; responsive/accessibility checks here are automated semantics and CSS review, not a browser matrix audit.
+
+## Reports, CSV downloads and Audit Logs (Prompt 11)
+
+Lazy `/organizations/:organizationId/reports` and `/organizations/:organizationId/audit-logs` routes reuse the Deep Teal workspace. Reports navigation/route access requires `report.read` or `report.export`; previews require `report.read`, while request/history/status/download require `report.export`. Audit requires `audit.read`. Canonical permissions are used without role checks; server authorization remains authoritative.
+
+All eight Reports APIs are integrated. Four GET previews expose invoice, recorded-payment, active-expense and receivables registers. No aggregate is calculated from paginated rows. Monetary strings retain Decimal precision and use the existing exact formatter. Cash Flow and simplified cash-basis performance have export support, not invented preview endpoints. Reporting reflects current state and is not frozen historical reconstruction or a GAAP/IFRS statement.
+
+CSV creation supports exactly `INVOICE_REGISTER`, `PAYMENT_REGISTER`, `EXPENSE_REGISTER`, `RECEIVABLES`, `CASH_FLOW` and `CASH_BASIS_PERFORMANCE`. Explicit organization-local dates freeze retry intent: ranges are real calendar dates, ordered and at most 366 inclusive days; invoice as-of cannot precede range start. Receivables sends only as-of. Conditional UUID filters, exact vendor/payee, invoice statuses and type-specific grouping follow the backend allowlist. Requests send `{reportType,format:'CSV',parameters}` and a fresh Idempotency-Key, expect HTTP 202, and send no If-Match. Pending submissions disable duplicates. Uncertain outcomes retain an in-memory scoped key/payload for explicit identical retry; there is no automatic POST replay or persistent credential/file store. Reload or organization/account clearing loses this saved attempt, so inspect history before making a new request.
+
+Export history supports type/status/25–100 limit filters and opaque next/previous cursors, with backend createdAt/id descending order. Safe detail metadata includes timestamps, normalized parameters, Decimal-safe string row count and all five states: PENDING, RUNNING, READY, FAILED, EXPIRED. Requester identity is not returned or fabricated. These exports are organization-wide, not requester-only. Generation requires the existing backend worker, which rechecks requester access. Refresh is manual; no polling, cancel, retry-job, deletion or expiration scheduler is added. READY alone exposes download; the server rechecks state and authorization.
+
+Authenticated GET download uses the existing bearer/session client and consumes original UTF-8 CSV bytes directly. No visible-page CSV reconstruction, secret query string, public URL or blob query cache is used. MIME/status and the 10 MiB bound are checked. When accessible, the exact safe Content-Disposition filename is verified; existing cross-origin CORS does not expose this header, so `report-<exportId>.csv` is the deterministic fallback. An ephemeral object URL/anchor triggers the download; the anchor is removed and the URL revoked after one second or earlier scope abort. Expired/not-ready/unavailable artifacts receive safe recovery messages. The backend limits files to 10,000 rows/10 MiB, fails oversized exports without truncation, and owns formula escaping, private storage and configured expiration (default 24 hours).
+
+Audit has exactly one read-only collection API, with no separate detail, mutation or export endpoint. Filters use exact actor user UUID, action, entity type/UUID, optional organization-local occurred-from/to dates, 25–100 limit, occurredAt ascending/descending and opaque cursors. No month filter is silently applied; open-ended bounds are allowed and two-sided ranges cap at 1,825 inclusive days. Actor types/IDs, action, outcome, source and exact timestamps are shown without invented profile lookups. Inline details render a bounded non-personal flat subset of allowlisted before/after fields, safe changed-field names and trace identifiers. Nested payloads, personal contacts and arbitrary metadata are omitted; unknown actions remain escaped text. Links use known structured resource IDs, current organization and permission only; historical resources may return 404. Backend append-only storage and projection remain unchanged.
+
+Queries include account, organization, operation, filters and cursor; previews also include type/parameters/currency/timezone. Fresh reads have zero retention after unmount, consume cancellation signals and never display previous-scope placeholders. Membership revalidation withholds rows. Organization switching preserves the feature route, resets filters/selection, aborts stale reads/commands/downloads and removes old scope. Logout or later-account login clears session/cache state. Creation invalidates only current-tenant export lists; download does not invalidate financial or unrelated queries. No dependency, authentication change, backend source/schema/migration or API-count change was made: **65 backend APIs** remain.
+
+Focused verification adds **69 tests in four suites**: Reports contracts (19), CSV bytes/filename/MIME/URL cleanup (8), Audit validation/projection/navigation (6), and routed RTL/MSW workflows (36). Coverage includes six type requests, four preview paths, idempotent uncertainty, duplicate suppression, lifecycle/manual refresh, cursors, authenticated original-byte downloads, 403/404, sensitive-field filtering, stale tenant responses/download abort, logout and later-account isolation. Two existing assertions were updated to reflect the newly implemented Reports route; no previous test was removed or weakened.
+
+Live smoke checks found liveness and PostgreSQL/Redis readiness HTTP 200, and anonymous report-export/audit requests HTTP 401. Authenticated live generation/download/audit checks and manual browser verification were not performed because no suitable authenticated fixture was available. Automated contracts/DOM semantics and responsive CSS review do not claim a manual browser matrix. Frontend Prompt 12 remains unstarted.
+
+Final Prompt 11 verification: **548 tests / 27 suites** pass in both `npm.cmd run test` and `npm.cmd run test -- --pool=forks --maxWorkers=1`, preserving the 479-test baseline and adding 69 tests. Typecheck, ESLint, Prettier check, production build and root `git diff --check` pass. An initial default run had three existing Invoice/Dashboard/Financial Analytics timing failures; unchanged reruns passed without timeout or test-configuration changes. An early new test expected the wrong empty-state copy and was corrected; new test typing mistakes were also fixed.
+
+Production output: initial JS **516.82 → 522.40 kB** (+5.58 kB, 161.40 kB gzip after); lazy Reports **16.64 kB** (5.59 kB gzip), lazy Audit Logs **9.24 kB** (3.61 kB gzip), shared Reports/Audit CSS **2.59 kB** (0.83 kB gzip). Feature implementations remain behind dynamic routes; no report-generation/download library, chart dependency or manual chunking change was added. The existing initial-chunk >500 kB warning remains; Vite also emitted an informational CSS-plugin timing notice.

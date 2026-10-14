@@ -14,7 +14,11 @@
     "format:check": "prettier --check . --ignore-path .prettierignore",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test --config playwright.live.config.ts",
+    "test:e2e:preview": "playwright test --config playwright.preview.config.ts --grep \"sign-in|CSV download\"",
     "build": "npm run typecheck && vite build",
+    "size:initial": "node scripts/measure-initial-js.mjs",
     "preview": "vite preview --host localhost --port 4173 --strictPort"
   },
   "dependencies": {
@@ -29,7 +33,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

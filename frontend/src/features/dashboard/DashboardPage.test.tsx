@@ -4,12 +4,13 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
 import { routes } from '../../routes/routes';
 import { server } from '../../test/server';
+import { routerReady } from '../../test/router-ready';
 import {
   apiRoot,
   authFailure,
@@ -24,6 +25,11 @@ import { localToday, presetRange, type DateRange } from './dates';
 import { cashFixture, dashboardOrg as a, secondOrg as b, summaryFixture } from './test-fixtures';
 import { financialKeys } from '../financials/query-keys';
 const disposers: (() => void)[] = [];
+// Cold dependency transforms belong to setup. Compiled browser tests exercise
+// cold lazy chunks; functional assertions keep their existing time budgets.
+beforeAll(async () => {
+  await import('./DashboardPage');
+});
 const gates: (() => void)[] = [];
 function deferred() {
   const gate = makeDeferred();
@@ -99,7 +105,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 it('renders the lazy dashboard, authoritative cards, disclosure and exact chart table', async () => {
-  mount();
+  const { router } = mount();
+  await routerReady(router);
   const summary = await ready();
   expect(screen.getByRole('heading', { name: 'Financial overview' })).toBeInTheDocument();
   expect(within(summary).getByText('$1,200.10')).toBeInTheDocument();

@@ -73,9 +73,9 @@ count does not indicate that a database model or service exists.
 | 6 | POST | `/api/v1/auth/logout` | Auth | Bearer or refresh cookie | — | Revokes the current session | Future frontend: logout control |
 | 7 | POST | `/api/v1/auth/logout-all` | Auth | Bearer | — | Revokes all active user sessions | Future frontend: security settings |
 | 8 | GET | `/api/v1/me` | Auth | Bearer | — | Returns safe current-user profile | Future frontend: authenticated app shell |
-| 9 | POST | `/api/v1/organizations` | Organizations | Bearer | Authenticated user | Creates organization and tenant roots | Future frontend: organization creation |
-| 10 | GET | `/api/v1/organizations` | Organizations | Bearer | — | Lists caller's active organizations | Future frontend: organization selector |
-| 11 | GET | `/api/v1/organizations/:organizationId` | Organizations | Bearer + active membership | `organization.read` | Returns organization details | Future frontend: organization settings |
+| 9 | POST | `/api/v1/organizations` | Organizations | Bearer | Authenticated user | Creates organization and tenant roots | Frontend: Create Organization onboarding |
+| 10 | GET | `/api/v1/organizations` | Organizations | Bearer | — | Lists caller's active organizations | Frontend: organization selector and onboarding verification |
+| 11 | GET | `/api/v1/organizations/:organizationId` | Organizations | Bearer + active membership | `organization.read` | Returns organization details | Frontend: organization context and membership verification |
 | 12 | PATCH | `/api/v1/organizations/:organizationId` | Organizations | Bearer + active membership | `organization.update` | Updates allowed settings using `If-Match` | Future frontend: organization settings |
 | 13 | POST | `/api/v1/organizations/:organizationId/close` | Organizations | Bearer + active membership | `organization.close` | Closes organization without deleting history | Future frontend: organization settings |
 | 14 | GET | `/api/v1/organizations/:organizationId/members` | Memberships | Bearer + active membership | `membership.read` | Lists organization members | Future frontend: Members page |
@@ -121,15 +121,15 @@ count does not indicate that a database model or service exists.
 | 54 | GET | `/api/v1/organizations/:organizationId/notifications` | Notifications | Bearer + active membership + recipient | `notification.read` | Cursor-paginated own inbox | Frontend Prompt 10 inbox, state filters, cursor pagination; unread-on-page count only |
 | 55 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/read` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently mark own notification read | Frontend Prompt 10 explicit recipient read action |
 | 56 | POST | `/api/v1/organizations/:organizationId/notifications/:notificationId/archive` | Notifications | Bearer + active membership + recipient | `notification.update_self` | Idempotently archive own notification | Frontend Prompt 10 confirmed terminal archive |
-| 57 | GET | `/api/v1/organizations/:organizationId/reports/invoices` | Reports | Bearer + active membership | `report.read` | Invoice register preview | Future frontend: Reports |
-| 58 | GET | `/api/v1/organizations/:organizationId/reports/payments` | Reports | Bearer + active membership | `report.read` | Recorded payment preview | Future frontend: Reports |
-| 59 | GET | `/api/v1/organizations/:organizationId/reports/expenses` | Reports | Bearer + active membership | `report.read` | Active expense preview | Future frontend: Reports |
-| 60 | GET | `/api/v1/organizations/:organizationId/reports/receivables` | Reports | Bearer + active membership | `report.read` | Canonical aging preview | Future frontend: Reports |
-| 61 | POST | `/api/v1/organizations/:organizationId/reports/exports` | Reports | Bearer + active membership | `report.export` | Durable asynchronous CSV request | Future frontend: Reports |
-| 62 | GET | `/api/v1/organizations/:organizationId/report-exports` | Reports | Bearer + active membership | `report.export` | Cursor-paginated exports | Future frontend: Reports |
-| 63 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId` | Reports | Bearer + active membership | `report.export` | Safe export metadata/state | Future frontend: Reports |
-| 64 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId/download` | Reports | Bearer + active membership | `report.export` | Authorized audited CSV stream | Future frontend: Reports |
-| 65 | GET | `/api/v1/organizations/:organizationId/audit-logs` | Audit Logs | Bearer + active membership | `audit.read` | Cursor-paginated immutable tenant history | Future frontend: Audit Logs |
+| 57 | GET | `/api/v1/organizations/:organizationId/reports/invoices` | Reports | Bearer + active membership | `report.read` | Invoice register preview | Frontend Prompt 11: Invoice register preview and filters |
+| 58 | GET | `/api/v1/organizations/:organizationId/reports/payments` | Reports | Bearer + active membership | `report.read` | Recorded payment preview | Frontend Prompt 11: Recorded payment preview and filters |
+| 59 | GET | `/api/v1/organizations/:organizationId/reports/expenses` | Reports | Bearer + active membership | `report.read` | Active expense preview | Frontend Prompt 11: Active expense preview and filters |
+| 60 | GET | `/api/v1/organizations/:organizationId/reports/receivables` | Reports | Bearer + active membership | `report.read` | Canonical aging preview | Frontend Prompt 11: Receivables aging preview and as-of date |
+| 61 | POST | `/api/v1/organizations/:organizationId/reports/exports` | Reports | Bearer + active membership | `report.export` | Durable asynchronous CSV request | Frontend Prompt 11: Six-type CSV creation with idempotency |
+| 62 | GET | `/api/v1/organizations/:organizationId/report-exports` | Reports | Bearer + active membership | `report.export` | Cursor-paginated exports | Frontend Prompt 11: Export history, filters and opaque cursors |
+| 63 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId` | Reports | Bearer + active membership | `report.export` | Safe export metadata/state | Frontend Prompt 11: Selected export metadata and manual status refresh |
+| 64 | GET | `/api/v1/organizations/:organizationId/report-exports/:exportId/download` | Reports | Bearer + active membership | `report.export` | Authorized audited CSV stream | Frontend Prompt 11: Authenticated original CSV bytes and safe download |
+| 65 | GET | `/api/v1/organizations/:organizationId/audit-logs` | Audit Logs | Bearer + active membership | `audit.read` | Cursor-paginated immutable tenant history | Frontend Prompt 11: read-only Audit Logs, supported filters, opaque cursors and safe details |
 
 **TOTAL IMPLEMENTED APIs: 65**
 
@@ -235,7 +235,7 @@ Authentication: Bearer.
 Input/output: allowed organization settings; returns organization and caller membership.  
 Database models used: `Organization`, `Membership`, `InvoiceSequence`, `ExpenseCategory`, `AuditLog`.  
 Redis/BullMQ: neither.  
-Frontend/deployment usage: Future frontend: organization creation; browser API.
+Frontend/deployment usage: authenticated onboarding form at `/organizations/new`, linked from the empty workspace; browser API.
 
 #### GET /api/v1/organizations
 
@@ -720,8 +720,8 @@ append-only protection are unchanged. See api-contracts.md for exact fields.
 | Profit & Loss | Implemented profit-loss route | Frontend Prompt 9 none/month cash-basis reports and category breakdown |
 | Analytics | Implemented summary/receivables-aging routes | Dashboard and Prompt 9 independent as-of aging; five exact aggregate buckets |
 | Notifications | Implemented own inbox/read/archive routes | Frontend Prompt 10 implemented; reminder visibility through notifications only, no ReminderDelivery HTTP API/global unread total |
-| Reports | Implemented report/export routes | Frontend not implemented |
-| Audit Logs | Implemented audit-log list | Frontend not implemented |
+| Reports | Implemented report/export routes | Frontend Prompt 11 implemented: four previews, six CSV types, lifecycle/history/download |
+| Audit Logs | Implemented audit-log list | Frontend Prompt 11 implemented: read-only list, filters, sorting, cursors and bounded details |
 
 ## 8. API → Database Model Mapping
 
@@ -874,11 +874,11 @@ permission for an active member is `403`.
 | `POST /organizations/:organizationId/reports/exports` | `report.export` |
 | `GET /organizations/:organizationId/report-exports[/:exportId[/download]]` | `report.export` |
 
-### Planned Permission Map — NOT IMPLEMENTED
+### Audit Permission Map — IMPLEMENTED
 
-| Planned API area | Required Permission |
+| Implemented API | Required Permission |
 |---|---|
-| Audit Logs | `audit.read` |
+| `GET /organizations/:organizationId/audit-logs` | `audit.read` |
 
 ## 13. API Status Legend
 
@@ -902,7 +902,7 @@ permission for an active member is `403`.
 - Report storage is local/private; cloud deployment and file retention cleanup remain deferred.
 - Audit history has one read-only list API; detail, export and metadata search are absent.
 - Swagger/OpenAPI is deferred to Prompt 27.
-- A React frontend is absent.
+- React frontend Prompts 1–11 are implemented; application-wide responsive/accessibility integration verification remains Prompt 12.
 - The backend is not deployed; infrastructure remains local development.
 - Notification workers are local only; real email/provider consent and operational recovery tooling remain deferred.
 
@@ -929,6 +929,6 @@ Do not manually increase the API count without verifying controllers.
 - Final core backend APIs: **65**
 - Implemented modules: **14 HTTP modules** — Health, Auth, Organizations, Memberships/Invitations, Customers, Invoices, Payments, Expenses, Cash Flow, P&L, Analytics, Notifications, Reports, Audit Logs
 - Financial/report APIs implemented: **33**
-- Frontend implemented: **Partial — foundation, authentication, organization context, Dashboard, Customers, Invoices, Payments, Expenses, Financial Analytics and Notifications/reminder visibility (Prompts 1–10)**
+- Frontend implemented: **Partial — foundation, authentication, organization context, Dashboard, Customers, Invoices, Payments, Expenses, Financial Analytics, Notifications/reminder visibility, Reports/CSV downloads and Audit Logs (Prompts 1–11)**
 - Backend deployed: **No**
 - Core backend scope: **Prompt 23 is the final core backend prompt; frontend and deployment remain separate work**

@@ -4,12 +4,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { beforeEach, afterEach, expect, it } from 'vitest';
+import { beforeAll, beforeEach, afterEach, expect, it } from 'vitest';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
 import { routes } from '../../routes/routes';
 import { server } from '../../test/server';
+import { routerReady } from '../../test/router-ready';
 import {
   apiRoot,
   authHandlers,
@@ -102,6 +103,9 @@ const choice = {
 };
 let reads: URL[];
 const dispose: (() => void)[] = [];
+beforeAll(async () => {
+  await import('./InvoicePages');
+});
 function mount(suffix = '', org = a.id) {
   const query = createQueryClient();
   const session = createSession(query, apiRoot);
@@ -175,7 +179,8 @@ async function completeCreate() {
   return user;
 }
 it('renders lazy invoices with authoritative amounts, dates, scoped query keys and navigation', async () => {
-  const { query } = mount();
+  const { query, router } = mount();
+  await routerReady(router);
   await screen.findByRole('table', { name: 'Invoice directory' });
   expect(screen.getByRole('link', { name: 'Invoices' })).toHaveAttribute('aria-current', 'page');
   expect(screen.getByText('$100.01')).toBeInTheDocument();
@@ -246,7 +251,8 @@ it('loads only one page of active customer choices and advances using the return
     }),
   );
   mount('/new');
-  await screen.findByRole('option', { name: 'First-page customer' });
+  const choices = await screen.findByLabelText('Invoice customer');
+  await within(choices).findByRole('option', { name: 'First-page customer' });
   expect(
     requests.every(
       (url) =>

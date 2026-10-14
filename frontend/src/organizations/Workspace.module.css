@@ -108,6 +108,57 @@
 .card h1 {
   overflow-wrap: anywhere;
 }
+.card .createAction {
+  display: inline-block;
+  border: 0;
+  border-radius: var(--radius-small);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-primary-action);
+  color: var(--color-card);
+  font-weight: 600;
+  text-decoration: none;
+}
+.createForm {
+  max-width: 32rem;
+  margin-top: var(--space-5);
+}
+.card .createAction:hover {
+  background: var(--color-primary-action-hover);
+}
+.card .createAction:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.createForm fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.createField {
+  margin-bottom: var(--space-5);
+}
+.createField label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+.createField input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-card);
+  color: var(--color-primary-text);
+}
+.createField p {
+  margin: var(--space-2) 0;
+  font-size: var(--font-small);
+  color: var(--color-secondary-text);
+}
+.createField input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
 .eyebrow {
   color: var(--color-secondary-text);
   font-size: var(--font-small);

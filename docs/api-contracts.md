@@ -329,9 +329,9 @@ Draft number/issued fields are null. CANCELLED/VOID has paymentState `NOT_APPLIC
 - **Request:** `legalName`, optional `displayName/slug/locale/invoicePrefix/invoiceNumberPadding/defaultPaymentTermsDays`, required `baseCurrency/timezone`.
 - **Validation:** lengths/registries/prefix/padding/terms rules.
 - **Domain/Transaction:** create Organization, InvoiceSequence, default categories, OWNER Membership, audit atomically.
-- **Idempotency:** recommended `Idempotency-Key`; same contract as commands.
+- **Idempotency:** creation receipts are not implemented on the current organization controller/service. Clients must not automatically retry an ambiguous creation outcome. `Idempotency-Key` support remains a recommendation for future implementation.
 - **Response:** 201 Organization with caller Membership summary.
-- **Errors/Audit:** 409 slug/idempotency, 422 invalid registry/business setting; `ORGANIZATION_CREATED`.
+- **Errors/Audit:** 400 invalid/unknown DTO fields, 401 unauthenticated, 409 `ORGANIZATION_SLUG_UNAVAILABLE`, 422 invalid currency/timezone/locale registry values; `ORGANIZATION_CREATED`. Creation has no idempotency receipt or idempotency conflict contract.
 
 ### 9.5 Change membership role
 

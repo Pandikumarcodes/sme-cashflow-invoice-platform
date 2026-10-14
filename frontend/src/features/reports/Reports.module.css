@@ -1,0 +1,144 @@
+.page {
+  display: grid;
+  gap: var(--space-5);
+  max-width: var(--page-width);
+  margin: auto;
+  min-width: 0;
+}
+.panel,
+.card {
+  background: var(--color-card);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-soft);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.page h1,
+.page h2,
+.page h3 {
+  margin-top: 0;
+}
+.controls,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+}
+.panel label {
+  display: grid;
+  gap: var(--space-2);
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.panel input,
+.panel select {
+  min-height: 2.75rem;
+  max-width: 100%;
+  width: 100%;
+  padding: var(--space-2);
+  background: var(--color-card);
+  color: var(--color-primary-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+}
+.page button {
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  background: var(--color-primary-action);
+  color: var(--color-sidebar-text);
+  cursor: pointer;
+}
+.page button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.page .secondary {
+  background: var(--color-card);
+  border-color: var(--color-border);
+  color: var(--color-primary-text);
+}
+.note {
+  color: var(--color-secondary-text);
+  font-size: var(--font-small);
+}
+.error {
+  color: var(--color-danger-text);
+}
+.cards {
+  display: grid;
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-variant-numeric: tabular-nums;
+}
+.facts div {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.facts dt {
+  color: var(--color-secondary-text);
+}
+.facts dd {
+  margin: var(--space-1) 0;
+  overflow-wrap: anywhere;
+}
+.tableWrap {
+  overflow-x: auto;
+}
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tableWrap td,
+.tableWrap th {
+  padding: var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  font-variant-numeric: tabular-nums;
+}
+.tableWrap caption {
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+.status {
+  font-weight: 700;
+}
+.status[data-state='READY'] {
+  color: var(--color-success-text);
+}
+.status[data-state='FAILED'] {
+  color: var(--color-danger-text);
+}
+.status[data-state='EXPIRED'] {
+  color: var(--color-warning-text);
+}
+.skeleton {
+  min-height: 7rem;
+  background: var(--color-workspace);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+}
+@media (max-width: 48rem) {
+  .panel,
+  .card {
+    padding: var(--space-4);
+  }
+  .controls label {
+    flex-basis: 100%;
+  }
+  .actions button {
+    flex: 1 1 auto;
+  }
+}

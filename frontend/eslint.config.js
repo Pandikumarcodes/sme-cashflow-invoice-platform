@@ -5,7 +5,15 @@ import refresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'node_modules/**',
+      'playwright-report/**',
+      'test-results/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -17,5 +25,9 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
-  { files: ['*.js'], languageOptions: { globals: globals.node } },
+  { files: ['*.js', 'scripts/**/*.mjs'], languageOptions: { globals: globals.node } },
+  {
+    files: ['e2e/**/*.{ts,mjs}', 'playwright*.config.ts'],
+    languageOptions: { globals: globals.node },
+  },
 );

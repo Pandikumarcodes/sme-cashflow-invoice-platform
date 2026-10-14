@@ -4,6 +4,11 @@ Backend-first, multi-tenant cash-flow and invoice management platform. The JavaS
 
 ## Audit history
 
+Frontend Prompt 12 verification and deployment prerequisites are recorded in
+[frontend production readiness](docs/frontend-production-readiness.md).
+Browser and guarded live-integration commands are documented in [frontend/README.md](frontend/README.md).
+The backend API inventory remains 65 routes.
+
 Prompt 22 adds the read-only `GET /api/v1/organizations/:organizationId/audit-logs`
 API, bringing the implemented total to 65. Current membership and `audit.read`
 are checked on every request and inside the read-only transaction. Timestamp/ID

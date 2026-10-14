@@ -666,6 +666,7 @@ it('allows read-only permissions without assuming an invented role', async () =>
     permissions: ['notification.read'],
     hasPermission: (p) => p === 'notification.read',
     switchOrganization: () => {},
+    activateCreatedOrganization: async () => {},
     retry: () => {},
     clearSelection: () => {},
   };
