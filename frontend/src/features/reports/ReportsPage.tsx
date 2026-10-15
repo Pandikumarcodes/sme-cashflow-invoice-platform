@@ -313,7 +313,7 @@ function ExportFacts({ row }: { row: ReportExport }) {
         )}
         {Object.entries(row.parameters).map(([field, value]) => (
           <div key={field}>
-            <dt>{field}</dt>
+            <dt>{parameterLabels[field] ?? field}</dt>
             <dd>{value}</dd>
           </div>
         ))}
@@ -396,6 +396,38 @@ const columns = {
   EXPENSE_REGISTER: ['expenseDate', 'categoryName', 'vendorPayee', 'description', 'amount'],
   RECEIVABLES: ['bucket', 'invoiceCount', 'amount', 'asOfDate'],
 } as const;
+const columnLabels: Record<string, string> = {
+  invoiceNumber: 'Invoice number',
+  status: 'Status',
+  customerName: 'Customer',
+  issueDate: 'Issue date',
+  dueDate: 'Due date',
+  total: 'Total',
+  paid: 'Paid',
+  balance: 'Balance',
+  overdue: 'Overdue',
+  paymentDate: 'Payment date',
+  paymentMethod: 'Payment method',
+  amount: 'Amount',
+  expenseDate: 'Expense date',
+  categoryName: 'Category',
+  vendorPayee: 'Vendor / payee',
+  description: 'Description',
+  bucket: 'Aging bucket',
+  invoiceCount: 'Invoices',
+  asOfDate: 'As-of date',
+};
+const parameterLabels: Record<string, string> = {
+  fromDate: 'From date',
+  toDate: 'To date',
+  asOfDate: 'As-of date',
+  customerId: 'Customer ID',
+  invoiceId: 'Invoice ID',
+  expenseCategoryId: 'Expense category ID',
+  vendorPayee: 'Vendor / payee',
+  status: 'Invoice status',
+  groupBy: 'Grouping',
+};
 function Previews() {
   const org = useOrganization().organization!;
   const [type, setType] = useState<PreviewType>('INVOICE_REGISTER');
@@ -511,7 +543,7 @@ function Previews() {
                   <tr>
                     {columns[type].map((column) => (
                       <th scope="col" key={column}>
-                        {column}
+                        {columnLabels[column] ?? column}
                       </th>
                     ))}
                   </tr>

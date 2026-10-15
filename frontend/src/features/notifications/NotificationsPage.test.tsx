@@ -135,6 +135,8 @@ it('renders unread/read states, exact times, structured links and the constraine
   expect(screen.getByText('Unread on this page: 1. Loaded notifications: 2.')).toBeInTheDocument();
   const reminder = screen.getByRole('article', { name: 'Invoice overdue' });
   expect(within(reminder).getByText('Invoice overdue reminder')).toBeInTheDocument();
+  expect(within(reminder).getByText('Unread', { exact: true })).toBeVisible();
+  expect(within(reminder).getByRole('heading', { name: 'Invoice overdue' })).toBeVisible();
   expect(within(reminder).getByRole('link', { name: 'Open related invoice' })).toHaveAttribute(
     'href',
     `/organizations/${a.id}/invoices/${invoiceId}`,

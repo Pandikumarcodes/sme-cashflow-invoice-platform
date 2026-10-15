@@ -11,6 +11,7 @@ import { formatInvoiceMoney, InvoiceDecimal } from './calculation';
 import { InvoiceForm } from './InvoiceForm';
 import { CustomerPicker } from './CustomerPicker';
 import { InvoiceActionDialog } from './InvoiceActionDialog';
+import { OperationsFilterToolbar } from '../../components/filters/OperationsFilterToolbar';
 import type { InvoiceAction } from './api';
 import styles from './Invoices.module.css';
 function Boundary({ permission, children }: { permission: string; children: ReactNode }) {
@@ -51,6 +52,19 @@ const selectors = [
   ['sortBy', 'Sort invoices by', ['issueDate', 'dueDate', 'createdAt', 'total', 'invoiceNumber']],
   ['sortOrder', 'Invoice sort order', ['desc', 'asc']],
 ] as const;
+function invoiceSortLabel(value: string) {
+  return (
+    (
+      {
+        issueDate: 'Issue date',
+        dueDate: 'Due date',
+        createdAt: 'Created date',
+        total: 'Total amount',
+        invoiceNumber: 'Invoice number',
+      } as Record<string, string>
+    )[value] ?? value
+  );
+}
 function validDates(filters: InvoiceFilters) {
   for (const prefix of ['issueDate', 'dueDate'] as const) {
     const from = filters[`${prefix}From`];
@@ -95,15 +109,28 @@ function InvoiceList() {
     setCursors([undefined]);
   };
   const base = `/organizations/${organization.id}/invoices`;
+  const advancedActive = [
+    filters.overdue,
+    filters.customerId,
+    filters.issueDateFrom,
+    filters.issueDateTo,
+    filters.dueDateFrom,
+    filters.dueDateTo,
+    filters.sortBy !== defaultFilters.sortBy,
+    filters.sortOrder !== defaultFilters.sortOrder,
+    filters.limit !== defaultFilters.limit,
+  ].filter(Boolean).length;
+  const clearFilters = () => {
+    setInput('');
+    setFilters({ ...defaultFilters });
+    setCursors([undefined]);
+  };
   return (
     <div className={styles.page}>
       <header className={styles.heading}>
         <div>
           <h1>Invoices</h1>
-          <p>
-            Review drafts and issued documents for{' '}
-            {organization.displayName ?? organization.legalName}.
-          </p>
+          <p>Create, issue and manage customer invoices.</p>
         </div>
         {context.hasPermission('invoice.create') && (
           <Link to={`${base}/new`} className={styles.primary}>
@@ -111,54 +138,113 @@ function InvoiceList() {
           </Link>
         )}
       </header>
-      <section className={styles.panel} aria-label="Invoice filters">
-        <div className={styles.grid}>
-          <div className={styles.field}>
-            <label htmlFor="invoice-search">Search invoices</label>
-            <input
-              id="invoice-search"
-              type="search"
-              value={input}
-              maxLength={100}
-              onChange={(event) => setInput(event.target.value)}
-              aria-invalid={!validSearch}
-            />
-            <small>2–100 characters; invoice number or customer name.</small>
-          </div>
-          {selectors.map(([field, label, options]) => (
-            <div className={styles.field} key={field}>
-              <label htmlFor={`filter-${field}`}>{label}</label>
+      <OperationsFilterToolbar
+        ariaLabel="Invoice filters"
+        activeAdvancedCount={advancedActive}
+        onClear={clearFilters}
+        primary={
+          <>
+            <div className={styles.field}>
+              <label htmlFor="invoice-search">Search invoices</label>
+              <input
+                id="invoice-search"
+                type="search"
+                value={input}
+                maxLength={100}
+                onChange={(event) => setInput(event.target.value)}
+                aria-invalid={!validSearch}
+              />
+              <small>2–100 characters; invoice number or customer name.</small>
+            </div>
+            {selectors.slice(0, 2).map(([field, label, options]) => (
+              <div className={styles.field} key={field}>
+                <label htmlFor={`filter-${field}`}>{label}</label>
+                <select
+                  id={`filter-${field}`}
+                  value={filters[field]}
+                  onChange={(event) => change({ [field]: event.target.value })}
+                >
+                  {options.map((option) => (
+                    <option key={option} value={option}>
+                      {option === ''
+                        ? 'All'
+                        : option === 'true'
+                          ? 'Overdue only'
+                          : option === 'false'
+                            ? 'Not overdue'
+                            : option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </>
+        }
+        advanced={
+          <>
+            {selectors.slice(2).map(([field, label, options]) => (
+              <div className={styles.field} key={field}>
+                <label htmlFor={`filter-${field}`}>{label}</label>
+                <select
+                  id={`filter-${field}`}
+                  value={filters[field]}
+                  onChange={(event) => change({ [field]: event.target.value })}
+                >
+                  {options.map((option) => (
+                    <option key={option} value={option}>
+                      {option === ''
+                        ? 'All'
+                        : option === 'true'
+                          ? 'Overdue only'
+                          : option === 'false'
+                            ? 'Not overdue'
+                            : field === 'sortBy'
+                              ? invoiceSortLabel(option)
+                              : option === 'desc'
+                                ? 'Descending'
+                                : 'Ascending'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+            <div className={styles.field}>
+              <label htmlFor="invoice-page-size">Invoice page size</label>
               <select
-                id={`filter-${field}`}
-                value={filters[field]}
-                onChange={(event) => change({ [field]: event.target.value })}
+                id="invoice-page-size"
+                value={filters.limit}
+                onChange={(event) => change({ limit: Number(event.target.value) })}
               >
-                {options.map((option) => (
-                  <option key={option} value={option}>
-                    {option === ''
-                      ? 'All'
-                      : option === 'true'
-                        ? 'Overdue only'
-                        : option === 'false'
-                          ? 'Not overdue'
-                          : option}
-                  </option>
+                {[25, 50, 100].map((limit) => (
+                  <option key={limit}>{limit}</option>
                 ))}
               </select>
             </div>
-          ))}
-          <div className={styles.field}>
-            <label htmlFor="invoice-page-size">Invoice page size</label>
-            <select
-              id="invoice-page-size"
-              value={filters.limit}
-              onChange={(event) => change({ limit: Number(event.target.value) })}
-            >
-              {[25, 50, 100].map((limit) => (
-                <option key={limit}>{limit}</option>
-              ))}
-            </select>
-          </div>
+            {(['issueDateFrom', 'issueDateTo', 'dueDateFrom', 'dueDateTo'] as const).map(
+              (field) => (
+                <div key={field} className={styles.field}>
+                  <label htmlFor={`filter-${field}`}>
+                    {
+                      {
+                        issueDateFrom: 'Invoice date from',
+                        issueDateTo: 'Invoice date to',
+                        dueDateFrom: 'Due date from',
+                        dueDateTo: 'Due date to',
+                      }[field]
+                    }
+                  </label>
+                  <input
+                    id={`filter-${field}`}
+                    type="date"
+                    value={filters[field]}
+                    onChange={(event) => change({ [field]: event.target.value })}
+                  />
+                </div>
+              ),
+            )}
+          </>
+        }
+        advancedSupplement={
           <CustomerPicker
             organizationId={organization.id}
             value={filters.customerId}
@@ -167,28 +253,8 @@ function InvoiceList() {
             invalid={false}
             optional
           />
-          {(['issueDateFrom', 'issueDateTo', 'dueDateFrom', 'dueDateTo'] as const).map((field) => (
-            <div key={field} className={styles.field}>
-              <label htmlFor={`filter-${field}`}>
-                {
-                  {
-                    issueDateFrom: 'Invoice date from',
-                    issueDateTo: 'Invoice date to',
-                    dueDateFrom: 'Due date from',
-                    dueDateTo: 'Due date to',
-                  }[field]
-                }
-              </label>
-              <input
-                id={`filter-${field}`}
-                type="date"
-                value={filters[field]}
-                onChange={(event) => change({ [field]: event.target.value })}
-              />
-            </div>
-          ))}
-        </div>
-      </section>
+        }
+      />
       {!valid ? (
         <p role="status">
           Check search length, customer UUID and valid ordered date ranges (at most 1,825 days).

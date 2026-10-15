@@ -1,7 +1,17 @@
 import { expect, it } from 'vitest';
 import { auditFilterError, defaultFilters, parseAuditPage, safeAuditData } from './contracts';
-import { auditDestination } from './presentation';
+import { auditDestination, auditActionLabel, auditResourceLabel } from './presentation';
 import { auditFixture, orgId, exportId, page } from '../reports/test-fixtures';
+it('labels verified writer actions and safely falls back for unknown codes', () => {
+  expect(auditActionLabel('CUSTOMER_CREATED')).toBe('Customer created');
+  expect(auditActionLabel('INVOICE_ISSUED')).toBe('Invoice issued');
+  expect(auditActionLabel('PAYMENT_RECORDED')).toBe('Payment recorded');
+  expect(auditActionLabel('report.export.request')).toBe('Report export requested');
+  expect(auditActionLabel('future.action')).toBe('Recorded activity');
+  expect(auditActionLabel('__proto__')).toBe('Recorded activity');
+  expect(auditResourceLabel('ExpenseCategory')).toBe('Expense category');
+  expect(auditResourceLabel('__proto__')).toBe('Resource');
+});
 it('allows unbounded and one-sided dates without inventing a default range', () => {
   expect(auditFilterError(defaultFilters)).toBeUndefined();
   expect(auditFilterError({ ...defaultFilters, occurredFrom: '2020-01-01' })).toBeUndefined();

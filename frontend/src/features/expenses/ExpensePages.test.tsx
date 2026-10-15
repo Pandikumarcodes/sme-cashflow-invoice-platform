@@ -202,6 +202,7 @@ it('uses literal vendor filters, supported sorts and opaque cursor history', asy
   await user.type(screen.getByLabelText('Search vendor / payee'), 'Utility_%');
   await waitFor(() => expect(reads.at(-1)?.searchParams.get('vendor')).toBe('Utility_%'));
   await screen.findByRole('table');
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   await user.selectOptions(screen.getByLabelText('Sort expenses by'), 'vendorPayee');
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.get('sortBy')).toBe('vendorPayee');
@@ -215,6 +216,7 @@ it('filters voided history and archived categories using supported backend queri
   const user = userEvent.setup();
   await user.selectOptions(screen.getByLabelText('Expense status'), 'VOIDED');
   await screen.findByRole('cell', { name: 'VOIDED' });
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   await user.selectOptions(screen.getByLabelText('Category choice status'), 'ARCHIVED');
   await screen.findByRole('option', { name: 'Utilities' });
   await user.selectOptions(screen.getByLabelText('Filter by category'), categoryId);
@@ -226,6 +228,7 @@ it('filters voided history and archived categories using supported backend queri
 it('blocks reversed and excessive date ranges without showing stale expense rows', async () => {
   mount();
   await screen.findByRole('table');
+  fireEvent.click(screen.getByRole('button', { name: 'More filters' }));
   fireEvent.change(screen.getByLabelText('Expense date from'), { target: { value: '2026-10-02' } });
   fireEvent.change(screen.getByLabelText('Expense date to'), { target: { value: '2026-10-01' } });
   expect(await screen.findByRole('alert')).toHaveTextContent('ordered');

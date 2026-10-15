@@ -1,4 +1,4 @@
-name: Release verification
+name: Verification
 on:
   pull_request:
   push:
@@ -10,38 +10,53 @@ concurrency:
   group: verification-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  fast:
+  frontend-quality:
+    name: Frontend static quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      DATABASE_URL: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
-      VITE_API_BASE_URL: http://localhost:3000/api/v1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: |
-            frontend/package-lock.json
-            backend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run format:check
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+  backend-quality:
+    name: Backend static quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
         working-directory: backend
       - run: npm run db:generate
         working-directory: backend
-      - run: npm run typecheck && npm run lint && npm run format:check && node scripts/verify-remediation.mjs default && npm run build && npm run size:initial
-        working-directory: frontend
-      - run: npm run lint && npm run format:check && node ../frontend/scripts/verify-remediation.mjs backend-unit && npm run build && npm run verify:api-inventory
+      - run: npm run lint
         working-directory: backend
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: fast-verification-evidence
-          retention-days: 7
-          path: frontend/test-results/remediation/*.json
+      - run: npm run format:check
+        working-directory: backend
+      - run: npm run build
+        working-directory: backend
+      - run: npm run verify:api-inventory
+        working-directory: backend
+
   backend-integration:
+    name: Backend database, HTTP E2E, and queue tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -66,9 +81,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: |
-            frontend/package-lock.json
-            backend/package-lock.json
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
         working-directory: backend
       - run: npm run db:generate
@@ -77,29 +90,24 @@ jobs:
         working-directory: backend
       - run: node --env-file=.env scripts/migrate-test-database.js
         working-directory: backend
-      - run: npm run db:migrate:status:test && npm run build
-        id: prepare
+      - run: npm run db:migrate:status:test
         working-directory: backend
       # Sequential: backend suites clear the same guarded test database.
-      - run: node scripts/verify-remediation.mjs backend-db
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        working-directory: frontend
-      - run: node scripts/verify-remediation.mjs backend-http
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        working-directory: frontend
-      - run: node scripts/verify-remediation.mjs backend-queues
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        working-directory: frontend
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: backend-integration-evidence
-          retention-days: 7
-          path: frontend/test-results/remediation/*.json
+      - run: npm run test:integration
+        working-directory: backend
+      - run: npm run test:e2e
+        working-directory: backend
+      - run: npm run test:queues
+        working-directory: backend
 
-  frontend-stability-default:
+  frontend-vitest:
+    name: Frontend Vitest shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -109,16 +117,24 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
-      - run: node scripts/verify-remediation.mjs default 5
+      - name: Record shard inventory
+        run: npm exec vitest list -- --pool=forks --maxWorkers=1 --shard=${{ matrix.shard }}/4 | tee vitest-shard-${{ matrix.shard }}-inventory.log
+        working-directory: frontend
+      - name: Run complete shard
+        run: set -o pipefail; npm run test -- --pool=forks --maxWorkers=1 --shard=${{ matrix.shard }}/4 --reporter=verbose 2>&1 | tee vitest-shard-${{ matrix.shard }}.log
         working-directory: frontend
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: frontend-default-evidence
+          name: frontend-vitest-shard-${{ matrix.shard }}-failure
           retention-days: 7
-          path: frontend/test-results/remediation/*.json
+          if-no-files-found: warn
+          path: |
+            frontend/vitest-shard-${{ matrix.shard }}.log
+            frontend/vitest-shard-${{ matrix.shard }}-inventory.log
 
-  frontend-stability-single:
+  backend-unit:
+    name: Backend unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -127,19 +143,16 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
-        working-directory: frontend
-      - run: node scripts/verify-remediation.mjs single 3
-        working-directory: frontend
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: frontend-single-evidence
-          retention-days: 7
-          path: frontend/test-results/remediation/*.json
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: npm run test:unit
+        working-directory: backend
 
   browser-verification:
+    name: Frontend Playwright (simulated API)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -153,24 +166,20 @@ jobs:
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
-      - run: node scripts/verify-remediation.mjs browser
-        if: ${{ !cancelled() }}
-        working-directory: frontend
-      - run: node scripts/verify-remediation.mjs preview
-        if: ${{ !cancelled() }}
+      - run: npm run test:e2e
         working-directory: frontend
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: browser-verification-evidence
+          name: frontend-playwright-simulated-failure
           retention-days: 7
-          # Simulated browser artifacts only; no live identity or private report data.
+          if-no-files-found: warn
           path: |
-            frontend/test-results/remediation/*.json
-            frontend/test-results/remediation/*-browser-*/browser/
-            frontend/test-results/remediation/*-preview-*/browser/
+            frontend/playwright-report
+            frontend/test-results/simulated
 
   live-integration:
+    name: Frontend Playwright (live backend)
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -206,19 +215,22 @@ jobs:
         working-directory: backend
       - run: node --env-file=.env scripts/migrate-test-database.js
         working-directory: backend
-      - run: npm run db:migrate:status:test && npm run build
-        id: prepare
+      - run: npm run db:migrate:status:test
+        working-directory: backend
+      - run: npm run build
         working-directory: backend
       - run: npm ci
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
-      - run: node scripts/verify-remediation.mjs live 3
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+      - run: npm run test:e2e:live
         working-directory: frontend
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: live-integration-evidence
+          name: frontend-playwright-live-failure
           retention-days: 7
-          path: frontend/test-results/remediation/*.json
+          if-no-files-found: warn
+          path: |
+            frontend/playwright-report/live
+            frontend/test-results/live

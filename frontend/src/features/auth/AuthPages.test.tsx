@@ -62,7 +62,9 @@ it('signs in and returns to a valid intended destination', async () => {
   const { router } = mount('/login', { returnTo: '/session?view=account#ready' });
   await enterLogin();
   await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-  expect(await screen.findByRole('heading', { name: 'You’re signed in.' })).toBeInTheDocument();
+  expect(
+    await screen.findByRole('heading', { name: 'Welcome to SME Finance' }),
+  ).toBeInTheDocument();
   expect(router.state.location.search).toBe('?view=account');
   expect(router.state.location.hash).toBe('#ready');
 });
@@ -134,7 +136,7 @@ it('prevents duplicate submissions and supports password visibility', async () =
   await started.promise;
   expect(screen.getByRole('button', { name: 'Signing in…' })).toBeDisabled();
   gate.resolve();
-  await screen.findByRole('heading', { name: 'You’re signed in.' });
+  await screen.findByRole('heading', { name: 'Welcome to SME Finance' });
   expect(calls).toBe(1);
 });
 it('registers without automatic login and clears the successful form', async () => {
@@ -180,7 +182,7 @@ it('keeps protected content hidden during checking, then redirects missing sessi
   );
   const { router } = mount('/session');
   expect(screen.getByRole('status')).toHaveTextContent('Checking your session');
-  expect(screen.queryByText('You’re signed in.')).not.toBeInTheDocument();
+  expect(screen.queryByText('Welcome to SME Finance')).not.toBeInTheDocument();
   gate.resolve();
   await screen.findByLabelText('Email address');
   expect(router.state.location.pathname).toBe('/login');
@@ -190,20 +192,22 @@ it('keeps protected content hidden during checking, then redirects missing sessi
 it('restores a protected page after reload and redirects authenticated login visits', async () => {
   server.use(http.post(`${apiRoot}/auth/refresh`, () => HttpResponse.json(tokenResponse())));
   const { router } = mount('/login');
-  expect(await screen.findByRole('heading', { name: 'You’re signed in.' })).toBeInTheDocument();
+  expect(
+    await screen.findByRole('heading', { name: 'Welcome to SME Finance' }),
+  ).toBeInTheDocument();
   expect(router.state.location.pathname).toBe('/session');
 });
 it('rejects external return-to navigation after login', async () => {
   const { router } = mount('/login', { returnTo: 'https://external.test/steal' });
   await enterLogin();
   await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-  await screen.findByRole('heading', { name: 'You’re signed in.' });
+  await screen.findByRole('heading', { name: 'Welcome to SME Finance' });
   expect(router.state.location.pathname).toBe('/session');
 });
 it('signs out to a public route and removes account data', async () => {
   server.use(http.post(`${apiRoot}/auth/refresh`, () => HttpResponse.json(tokenResponse())));
   const { query, router } = mount('/session');
-  await screen.findByRole('heading', { name: 'You’re signed in.' });
+  await screen.findByRole('heading', { name: 'Welcome to SME Finance' });
   query.setQueryData(['private-account'], 'old data');
   await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
   await screen.findByLabelText('Email address');

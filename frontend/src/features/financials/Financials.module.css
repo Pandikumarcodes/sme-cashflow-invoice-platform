@@ -1,6 +1,6 @@
 .dashboard {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-width: var(--page-width);
   margin: 0 auto;
 }
@@ -12,15 +12,27 @@
   color: var(--color-secondary-text);
   overflow-wrap: anywhere;
 }
+.heading > a {
+  display: inline-block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-small);
+}
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-card);
+  align-items: end;
 }
 .filters div {
   display: grid;
   gap: var(--space-2);
+  align-content: start;
 }
 .filters input,
 .filters select {
@@ -52,7 +64,9 @@
 }
 .disclosure {
   padding: var(--space-3) var(--space-4);
-  border-left: 3px solid var(--color-border);
+  border-left: 3px solid var(--color-primary-action);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+  background: #edf4ff;
 }
 .metrics {
   display: grid;
@@ -61,22 +75,23 @@
 }
 .metric,
 .panel {
-  padding: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-medium);
   background: var(--color-card);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
   min-width: 0;
 }
 .metric h2 {
   margin: 0;
   font-size: 1rem;
-  font-weight: 550;
+  font-weight: 650;
+  color: var(--color-secondary-text);
 }
 .metric p {
-  font-size: clamp(1.15rem, 2.5vw, 1.75rem);
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
   font-weight: 700;
-  margin: var(--space-3) 0;
+  margin: var(--space-2) 0 var(--space-1);
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
@@ -138,10 +153,21 @@
 }
 .tableWrap th,
 .tableWrap td {
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
+}
+.tableWrap thead th {
+  color: var(--color-secondary-text);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  background: #f8fafc;
+}
+.tableWrap tbody tr:hover {
+  background: var(--color-row-hover);
 }
 @media (max-width: 64rem) {
   .metrics {

@@ -17,7 +17,7 @@
 }
 .intro h1,
 .session h1 {
-  font: 400 clamp(2.5rem, 5vw, 4.1rem)/1.1 var(--font-display);
+  font: 700 clamp(2rem, 4vw, 3.2rem)/1.12 var(--font-display);
   letter-spacing: -0.04em;
   margin: var(--space-5) 0;
 }
@@ -35,14 +35,14 @@
   line-height: 1.7;
 }
 .card {
-  padding: var(--space-7);
+  padding: var(--space-6);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
   box-shadow: var(--shadow-soft);
 }
 .card h2 {
-  font: 400 1.8rem var(--font-display);
+  font: 650 1.5rem var(--font-display);
   margin: 0 0 var(--space-2);
 }
 .subtitle {
@@ -78,12 +78,12 @@
     box-shadow 0.15s;
 }
 .inputWrap input:hover {
-  border-color: #94a3b8;
+  border-color: var(--color-border-strong);
 }
 .inputWrap input:focus-visible {
   outline: none;
   border-color: var(--color-primary-action);
-  box-shadow: 0 0 0 3px rgb(37 99 235 / 16%);
+  box-shadow: 0 0 0 3px var(--color-focus-soft);
 }
 .inputWrap input[type='password'],
 .inputWrap:has(.toggle) input {
@@ -191,7 +191,35 @@
 }
 .session {
   max-width: 40rem;
-  margin: var(--space-7) auto;
+  margin: var(--space-5) auto;
+  width: 100%;
+}
+.sessionCard {
+  padding: clamp(var(--space-5), 5vw, var(--space-7));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow-soft);
+}
+.session h1 {
+  font-size: clamp(1.75rem, 4vw, 2.4rem);
+  margin: var(--space-3) 0;
+}
+.sessionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.sessionActions .primary,
+.sessionActions .secondary {
+  text-decoration: none;
+  text-align: center;
+}
+@media (max-width: 30rem) {
+  .sessionActions > * {
+    flex: 1 1 100%;
+  }
 }
 @media (max-width: 48rem) {
   .shell {

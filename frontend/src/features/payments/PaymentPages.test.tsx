@@ -185,10 +185,11 @@ it('uses server cursors, revisits previous pages and resets on supported filters
   await user.click(screen.getByRole('button', { name: 'Previous payments' }));
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.has('after')).toBe(false);
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   await user.selectOptions(screen.getByLabelText('Sort payments by'), 'amount');
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.get('sortBy')).toBe('amount');
-  await user.selectOptions(screen.getByLabelText('Payment method filter'), 'BANK_TRANSFER');
+  await user.selectOptions(screen.getByLabelText('Payment method'), 'BANK_TRANSFER');
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.get('method')).toBe('BANK_TRANSFER');
   await user.selectOptions(screen.getByLabelText('Payment page size'), '50');
@@ -201,6 +202,7 @@ it('supports invoice-related history and validates filters before financial requ
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.get('invoiceId')).toBe(invoiceId);
   const count = reads.length;
+  fireEvent.click(screen.getByRole('button', { name: 'More filters (1 active)' }));
   fireEvent.change(screen.getByLabelText('Payment date from'), { target: { value: '2026-10-02' } });
   fireEvent.change(screen.getByLabelText('Payment date to'), { target: { value: '2026-10-01' } });
   expect(await screen.findByRole('alert')).toHaveTextContent('ordered');

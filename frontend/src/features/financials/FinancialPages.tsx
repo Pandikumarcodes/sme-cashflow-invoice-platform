@@ -63,7 +63,7 @@ function CashFlow() {
       <header className={styles.heading}>
         <Link to={`/organizations/${org.id}/dashboard`}>Financial overview</Link>
         <h1>Cash Flow</h1>
-        <p>Recorded cash inflow and paid expense outflow for {org.displayName ?? org.legalName}.</p>
+        <p>Track money received and expenses paid.</p>
       </header>
       <PeriodControls
         key={`${range.fromDate}:${range.toDate}:${group}`}
@@ -73,12 +73,6 @@ function CashFlow() {
         today={today}
         apply={apply}
       />
-      <p className={styles.disclosure}>
-        Current-state cash view: RECORDED payments by payment date and ACTIVE expenses by expense
-        date. Reversed payments and voided expenses are excluded, including corrections outside this
-        range. This is not a bank balance or retained historical snapshot. Weeks start Monday;
-        partial periods include only selected dates. Missing periods are not filled.
-      </p>
       {!valid ? (
         <p role="alert">
           {reportRangeError(range.fromDate, range.toDate) ?? 'Choose day, week or month grouping.'}
@@ -157,6 +151,11 @@ function CashFlow() {
                 </table>
               </div>
             </section>
+            <p className={styles.disclosure}>
+              Current-state cash view: recorded payments by payment date and active expenses by
+              expense date. Reversed payments and voided expenses are excluded, including later
+              corrections. This is not a bank balance or retained historical snapshot.
+            </p>
           </>
         )
       )}
@@ -174,7 +173,7 @@ function ProfitLoss() {
       <header className={styles.heading}>
         <Link to={`/organizations/${org.id}/dashboard`}>Financial overview</Link>
         <h1>Profit &amp; Loss</h1>
-        <p>Simplified cash-basis performance for {org.displayName ?? org.legalName}.</p>
+        <p>Understand your cash-basis business performance.</p>
       </header>
       <PeriodControls
         key={`${range.fromDate}:${range.toDate}:${group}`}
@@ -184,12 +183,6 @@ function ProfitLoss() {
         today={today}
         apply={apply}
       />
-      <p className={styles.disclosure}>
-        Simplified cash-basis view based on recorded payments and active expenses. This is not a
-        formal accrual-accounting profit and loss statement. Reversed/voided facts are excluded by
-        current state, including later corrections. Category names reflect current names; archived
-        categories with active expenses remain included.
-      </p>
       {!valid ? (
         <p role="alert">
           {reportRangeError(range.fromDate, range.toDate) ?? 'Choose none or month grouping.'}
@@ -307,6 +300,11 @@ function ProfitLoss() {
                 </table>
               </div>
             </section>
+            <p className={styles.disclosure}>
+              Simplified cash-basis view based on recorded payments and active expenses. This is not
+              a formal accrual-accounting profit and loss statement. Reversed or voided facts are
+              excluded by current state, including later corrections.
+            </p>
           </>
         )
       )}

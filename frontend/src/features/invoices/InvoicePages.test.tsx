@@ -230,6 +230,7 @@ it('debounces literal search and resets pagination for filters and sorting', asy
   await user.selectOptions(screen.getByLabelText('Invoice status'), 'ISSUED');
   await screen.findByText('INV-000001');
   expect(reads.at(-1)?.searchParams.has('after')).toBe(false);
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   await user.selectOptions(screen.getByLabelText('Sort invoices by'), 'invoiceNumber');
   await waitFor(() => expect(reads.at(-1)?.searchParams.get('sortBy')).toBe('invoiceNumber'));
 });
@@ -698,6 +699,7 @@ it('restarts invalid cursors and rejects invalid date ranges before requesting t
   await user.click(screen.getByRole('button', { name: 'Next invoices' }));
   await user.click(await screen.findByRole('button', { name: 'Restart invoice pagination' }));
   await screen.findByText('Invoice page 1');
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   fireEvent.change(screen.getByLabelText('Invoice date from'), { target: { value: '2026-10-31' } });
   fireEvent.change(screen.getByLabelText('Invoice date to'), { target: { value: '2026-10-01' } });
   await screen.findByText(/Check search length/);

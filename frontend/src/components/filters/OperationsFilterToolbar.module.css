@@ -1,0 +1,71 @@
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-card);
+  align-items: start;
+}
+.primary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-3);
+  min-width: 0;
+  align-items: start;
+}
+.primary > * {
+  align-self: start;
+}
+.actions {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-self: end;
+}
+.more,
+.clear {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--control-radius);
+  background: var(--color-card);
+  color: var(--color-primary-text);
+  white-space: nowrap;
+}
+.clear {
+  color: var(--color-secondary-text);
+}
+.advanced {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.advancedGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+.advancedGrid > * {
+  align-self: start;
+}
+.advancedSupplement {
+  min-width: 0;
+}
+@media (max-width: 48rem) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+  .actions {
+    align-items: stretch;
+  }
+  .more,
+  .clear {
+    flex: 1 1 auto;
+  }
+}

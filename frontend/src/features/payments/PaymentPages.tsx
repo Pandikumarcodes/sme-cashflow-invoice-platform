@@ -15,6 +15,7 @@ import {
 import { usePaymentList, usePaymentDetail } from './queries';
 import { EligibleInvoices, SelectedPaymentInvoice } from './PaymentRecordForm';
 import { ReversalDialog } from './ReversalDialog';
+import { OperationsFilterToolbar } from '../../components/filters/OperationsFilterToolbar';
 import styles from './Payments.module.css';
 function Boundary({ permission, children }: { permission: string; children: ReactNode }) {
   const context = useOrganization();
@@ -63,12 +64,24 @@ function PaymentList({ initialInvoice }: { initialInvoice: string }) {
     setCursors([undefined]);
   };
   const base = `/organizations/${org.id}/payments`;
+  const advancedActive = [
+    filters.invoiceId,
+    filters.paymentDateFrom,
+    filters.paymentDateTo,
+    filters.sortBy !== defaultFilters.sortBy,
+    filters.sortOrder !== defaultFilters.sortOrder,
+    filters.limit !== defaultFilters.limit,
+  ].filter(Boolean).length;
+  const clearFilters = () => {
+    setFilters({ ...defaultFilters });
+    setCursors([undefined]);
+  };
   return (
     <div className={styles.page}>
       <header className={styles.heading}>
         <div>
           <h1>Payments</h1>
-          <p>Recorded receipts and full reversals for {org.displayName ?? org.legalName}.</p>
+          <p>Track recorded payments and reversals.</p>
         </div>
         {context.hasPermission('payment.create') && (
           <Link className={styles.primary} to={`${base}/new`}>
@@ -76,67 +89,105 @@ function PaymentList({ initialInvoice }: { initialInvoice: string }) {
           </Link>
         )}
       </header>
-      <section className={styles.panel} aria-label="Payment filters">
-        <div className={styles.grid}>
-          <div className={styles.field}>
-            <label htmlFor="filter-invoice">Invoice ID filter</label>
-            <input
-              id="filter-invoice"
-              value={filters.invoiceId}
-              onChange={(event) => change({ invoiceId: event.target.value })}
-            />
-            <small>Optional invoice UUID; invoice details link here automatically.</small>
-          </div>
-          {(
-            [
-              ['status', 'Payment status', ['', 'RECORDED', 'REVERSED']],
-              ['method', 'Payment method filter', ['', ...methods]],
-              ['sortBy', 'Sort payments by', ['paymentDate', 'recordedAt', 'amount']],
-              ['sortOrder', 'Payment sort order', ['desc', 'asc']],
-            ] as const
-          ).map(([field, label, options]) => (
-            <div className={styles.field} key={field}>
-              <label htmlFor={`payment-filter-${field}`}>{label}</label>
+      <OperationsFilterToolbar
+        ariaLabel="Payment filters"
+        activeAdvancedCount={advancedActive}
+        onClear={clearFilters}
+        primary={
+          <>
+            {(
+              [
+                ['status', 'Payment status', ['', 'RECORDED', 'REVERSED']],
+                ['method', 'Payment method', ['', ...methods]],
+              ] as const
+            ).map(([field, label, options]) => (
+              <div className={styles.field} key={field}>
+                <label htmlFor={`payment-filter-${field}`}>{label}</label>
+                <select
+                  id={`payment-filter-${field}`}
+                  value={filters[field]}
+                  onChange={(event) => change({ [field]: event.target.value })}
+                >
+                  {options.map((value) => (
+                    <option key={value} value={value}>
+                      {value || 'All'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </>
+        }
+        advanced={
+          <>
+            <div className={styles.field}>
+              <label htmlFor="filter-invoice">Invoice ID filter</label>
+              <input
+                id="filter-invoice"
+                value={filters.invoiceId}
+                onChange={(event) => change({ invoiceId: event.target.value })}
+              />
+              <small>Optional invoice UUID; invoice details link here automatically.</small>
+            </div>
+            {(
+              [
+                ['sortBy', 'Sort payments by', ['paymentDate', 'recordedAt', 'amount']],
+                ['sortOrder', 'Payment sort order', ['desc', 'asc']],
+              ] as const
+            ).map(([field, label, options]) => (
+              <div className={styles.field} key={field}>
+                <label htmlFor={`payment-filter-${field}`}>{label}</label>
+                <select
+                  id={`payment-filter-${field}`}
+                  value={filters[field]}
+                  onChange={(event) => change({ [field]: event.target.value })}
+                >
+                  {options.map((value) => (
+                    <option key={value} value={value}>
+                      {value === 'paymentDate'
+                        ? 'Payment date'
+                        : value === 'recordedAt'
+                          ? 'Recorded date'
+                          : value === 'amount'
+                            ? 'Amount'
+                            : value === 'desc'
+                              ? 'Descending'
+                              : value === 'asc'
+                                ? 'Ascending'
+                                : 'All'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+            {(['paymentDateFrom', 'paymentDateTo'] as const).map((field) => (
+              <div className={styles.field} key={field}>
+                <label htmlFor={`filter-${field}`}>
+                  Payment date {field.endsWith('From') ? 'from' : 'to'}
+                </label>
+                <input
+                  id={`filter-${field}`}
+                  type="date"
+                  value={filters[field]}
+                  onChange={(event) => change({ [field]: event.target.value })}
+                />
+              </div>
+            ))}
+            <div className={styles.field}>
+              <label htmlFor="payment-page-size">Payment page size</label>
               <select
-                id={`payment-filter-${field}`}
-                value={filters[field]}
-                onChange={(event) => change({ [field]: event.target.value })}
+                id="payment-page-size"
+                value={filters.limit}
+                onChange={(event) => change({ limit: Number(event.target.value) })}
               >
-                {options.map((value) => (
-                  <option key={value} value={value}>
-                    {value || 'All'}
-                  </option>
+                {[25, 50, 100].map((limit) => (
+                  <option key={limit}>{limit}</option>
                 ))}
               </select>
             </div>
-          ))}
-          {(['paymentDateFrom', 'paymentDateTo'] as const).map((field) => (
-            <div className={styles.field} key={field}>
-              <label htmlFor={`filter-${field}`}>
-                Payment date {field.endsWith('From') ? 'from' : 'to'}
-              </label>
-              <input
-                id={`filter-${field}`}
-                type="date"
-                value={filters[field]}
-                onChange={(event) => change({ [field]: event.target.value })}
-              />
-            </div>
-          ))}
-          <div className={styles.field}>
-            <label htmlFor="payment-page-size">Payment page size</label>
-            <select
-              id="payment-page-size"
-              value={filters.limit}
-              onChange={(event) => change({ limit: Number(event.target.value) })}
-            >
-              {[25, 50, 100].map((limit) => (
-                <option key={limit}>{limit}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
       {!valid ? (
         <p role="alert">
           Check invoice UUID and valid ordered payment dates (at most 1,825 days apart).

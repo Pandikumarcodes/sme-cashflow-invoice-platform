@@ -9,6 +9,7 @@ import { useCustomerDetail, useCustomerList } from './queries';
 import type { CustomerFilters } from './contracts';
 import { CustomerForm } from './CustomerForm';
 import { ArchiveDialog } from './ArchiveDialog';
+import { OperationsFilterToolbar } from '../../components/filters/OperationsFilterToolbar';
 import styles from './Customers.module.css';
 
 function CustomerBoundary({ permission, children }: { permission: string; children: ReactNode }) {
@@ -75,6 +76,22 @@ function CustomerList({ organizationId }: { organizationId: string }) {
     setCursors([undefined]);
   };
   const base = `/organizations/${organizationId}/customers`;
+  const advancedActive = [
+    filters.sortBy !== 'displayName',
+    filters.sortOrder !== 'asc',
+    filters.limit !== 25,
+  ].filter(Boolean).length;
+  const clearFilters = () => {
+    setInput('');
+    setFilters({
+      status: 'ACTIVE',
+      search: '',
+      sortBy: 'displayName',
+      sortOrder: 'asc',
+      limit: 25,
+    });
+    setCursors([undefined]);
+  };
   const data =
     !list.isError && !list.isFetching && !settling && validSearch ? list.data : undefined;
   return (
@@ -83,7 +100,7 @@ function CustomerList({ organizationId }: { organizationId: string }) {
         <div>
           <p>{context.organization?.displayName ?? context.organization?.legalName}</p>
           <h1>Customers</h1>
-          <p>Manage customer identity and contact details.</p>
+          <p>Manage your customers and contact information.</p>
         </div>
         {context.hasPermission('customer.create') && (
           <Link className={styles.primary} to={`${base}/new`}>
@@ -91,75 +108,86 @@ function CustomerList({ organizationId }: { organizationId: string }) {
           </Link>
         )}
       </header>
-      <section className={styles.panel} aria-label="Customer filters">
-        <div className={styles.filters}>
-          <div className={styles.field}>
-            <label htmlFor="customer-search">Search customers</label>
-            <input
-              id="customer-search"
-              type="search"
-              value={input}
-              maxLength={100}
-              aria-describedby="search-help"
-              aria-invalid={!validSearch}
-              onChange={(event) => setInput(event.target.value)}
-            />
-            <small id="search-help">Search names or email addresses using 2–100 characters.</small>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="customer-status">Status</label>
-            <select
-              id="customer-status"
-              value={filters.status}
-              onChange={(event) =>
-                change({ status: event.target.value as CustomerFilters['status'] })
-              }
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="ARCHIVED">Archived</option>
-            </select>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="customer-sort">Sort by</label>
-            <select
-              id="customer-sort"
-              value={filters.sortBy}
-              onChange={(event) =>
-                change({ sortBy: event.target.value as CustomerFilters['sortBy'] })
-              }
-            >
-              <option value="displayName">Display name</option>
-              <option value="createdAt">Created date</option>
-              <option value="updatedAt">Updated date</option>
-            </select>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="customer-order">Sort order</label>
-            <select
-              id="customer-order"
-              value={filters.sortOrder}
-              onChange={(event) =>
-                change({ sortOrder: event.target.value as CustomerFilters['sortOrder'] })
-              }
-            >
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="customer-limit">Page size</label>
-            <select
-              id="customer-limit"
-              value={filters.limit}
-              onChange={(event) => change({ limit: Number(event.target.value) })}
-            >
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
-        </div>
-      </section>
+      <OperationsFilterToolbar
+        ariaLabel="Customer filters"
+        activeAdvancedCount={advancedActive}
+        onClear={clearFilters}
+        primary={
+          <>
+            <div className={styles.field}>
+              <label htmlFor="customer-search">Search customers</label>
+              <input
+                id="customer-search"
+                type="search"
+                value={input}
+                maxLength={100}
+                aria-describedby="search-help"
+                aria-invalid={!validSearch}
+                onChange={(event) => setInput(event.target.value)}
+              />
+              <small id="search-help">
+                Search names or email addresses using 2–100 characters.
+              </small>
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="customer-status">Status</label>
+              <select
+                id="customer-status"
+                value={filters.status}
+                onChange={(event) =>
+                  change({ status: event.target.value as CustomerFilters['status'] })
+                }
+              >
+                <option value="ACTIVE">Active</option>
+                <option value="ARCHIVED">Archived</option>
+              </select>
+            </div>
+          </>
+        }
+        advanced={
+          <>
+            <div className={styles.field}>
+              <label htmlFor="customer-sort">Sort by</label>
+              <select
+                id="customer-sort"
+                value={filters.sortBy}
+                onChange={(event) =>
+                  change({ sortBy: event.target.value as CustomerFilters['sortBy'] })
+                }
+              >
+                <option value="displayName">Display name</option>
+                <option value="createdAt">Created date</option>
+                <option value="updatedAt">Updated date</option>
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="customer-order">Sort order</label>
+              <select
+                id="customer-order"
+                value={filters.sortOrder}
+                onChange={(event) =>
+                  change({ sortOrder: event.target.value as CustomerFilters['sortOrder'] })
+                }
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="customer-limit">Page size</label>
+              <select
+                id="customer-limit"
+                value={filters.limit}
+                onChange={(event) => change({ limit: Number(event.target.value) })}
+              >
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </>
+        }
+      />
       {!validSearch ? (
         <p role="status">Enter 2–100 nonblank characters to search, or clear the search.</p>
       ) : settling || list.isPending || list.isFetching ? (

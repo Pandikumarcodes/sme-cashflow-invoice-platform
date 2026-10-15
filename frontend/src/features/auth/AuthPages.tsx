@@ -288,26 +288,27 @@ export function SessionPage() {
   const navigate = useNavigate();
   return (
     <section className={styles.session}>
-      <p className={styles.eyebrow}>Your account</p>
-      <h1>You’re signed in.</h1>
-      <p>Welcome, {user?.firstName}. Your session is ready.</p>
-      <p className={styles.subtitle}>
-        Business workspace features will arrive in later milestones.
-      </p>
-      <p>
-        <Link to="/workspace">Open organization workspace</Link>
-      </p>
-      <button
-        className={styles.primary}
-        disabled={busy}
-        onClick={() => {
-          const pending = session.logout();
-          navigate('/login', { replace: true });
-          void pending;
-        }}
-      >
-        Sign out
-      </button>
+      <div className={styles.sessionCard}>
+        <p className={styles.eyebrow}>Account ready</p>
+        <h1>Welcome to SME Finance</h1>
+        <p>Welcome back, {user?.firstName}. Your account is ready for your business workspace.</p>
+        <div className={styles.sessionActions}>
+          <Link className={styles.primary} to="/workspace">
+            Open workspace
+          </Link>
+          <button
+            className={styles.secondary}
+            disabled={busy}
+            onClick={() => {
+              const pending = session.logout();
+              navigate('/login', { replace: true });
+              void pending;
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

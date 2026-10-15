@@ -63,19 +63,13 @@ function Aging() {
       <header className={styles.heading}>
         <Link to={`/organizations/${org.id}/dashboard`}>Financial overview</Link>
         <h1>Receivables Aging</h1>
-        <p>Backend-defined outstanding invoice buckets for {org.displayName ?? org.legalName}.</p>
+        <p>Monitor unpaid invoices and overdue balances.</p>
       </header>
       <AsOfControl
         key={asOfDate}
         value={asOfDate}
         apply={(value) => setParams({ asOfDate: value })}
       />
-      <p className={styles.disclosure}>
-        Independent as-of business date: current ISSUED invoices issued on or before that date, less
-        current RECORDED payments dated through it. Due today is current. Later reversals and
-        lifecycle corrections affect this view; it is not a frozen historical snapshot. Only
-        aggregate buckets are returned, so invoice/customer drilldowns are unavailable.
-      </p>
       {!valid ? (
         <p role="alert">Enter a valid as-of calendar date.</p>
       ) : report.isPending || report.isFetching ? (
@@ -157,6 +151,11 @@ function Aging() {
                 </table>
               </div>
             </section>
+            <p className={styles.disclosure}>
+              This independent business-date view uses current issued invoices and recorded payments
+              through the selected date. Due today is current; later lifecycle corrections affect
+              the view, which is not a frozen historical snapshot.
+            </p>
           </>
         )
       )}

@@ -6,7 +6,120 @@ import { useOrganization } from './OrganizationContext';
 import { OrganizationProvider } from './OrganizationProvider';
 import styles from './Workspace.module.css';
 
-const futureNavigation = [['Settings', 'organization.update']] as const;
+const navigationGroups = [
+  {
+    title: 'Overview',
+    items: [
+      { label: 'Dashboard', path: 'dashboard', permission: 'analytics.read', icon: 'overview' },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
+      { label: 'Customers', path: 'customers', permission: 'customer.read', icon: 'people' },
+      { label: 'Invoices', path: 'invoices', permission: 'invoice.read', icon: 'document' },
+      { label: 'Payments', path: 'payments', permission: 'payment.read', icon: 'payment' },
+      { label: 'Expenses', path: 'expenses', permission: 'expense.read', icon: 'expense' },
+    ],
+  },
+  {
+    title: 'Financial analytics',
+    items: [
+      { label: 'Cash Flow', path: 'cash-flow', permission: 'analytics.read', icon: 'chart' },
+      { label: 'Profit & Loss', path: 'profit-loss', permission: 'analytics.read', icon: 'chart' },
+      {
+        label: 'Receivables Aging',
+        path: 'receivables-aging',
+        permission: 'analytics.read',
+        icon: 'clock',
+      },
+    ],
+  },
+  {
+    title: 'Management',
+    items: [
+      {
+        label: 'Notifications',
+        path: 'notifications',
+        permission: 'notification.read',
+        icon: 'bell',
+      },
+      { label: 'Reports', path: 'reports', permission: 'report.read', icon: 'document' },
+      { label: 'Audit Logs', path: 'audit-logs', permission: 'audit.read', icon: 'list' },
+    ],
+  },
+] as const;
+
+const iconPaths = {
+  overview: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </>
+  ),
+  people: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6M17 14a5 5 0 0 1 4 5v1" />
+    </>
+  ),
+  document: (
+    <>
+      <path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" />
+    </>
+  ),
+  payment: (
+    <>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20M6 15h4" />
+    </>
+  ),
+  expense: (
+    <>
+      <path d="M12 3v18M7 8h7a3 3 0 0 1 0 6h-4a3 3 0 0 0 0 6h7" />
+    </>
+  ),
+  chart: (
+    <>
+      <path d="M3 20h18M5 16l5-5 4 3 5-8" />
+      <path d="M16 6h3v3" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l4 2" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 20h4" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1" />
+    </>
+  ),
+} as const;
+
+function NavigationIcon({ name }: { name: keyof typeof iconPaths }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {iconPaths[name]}
+    </svg>
+  );
+}
 export function OrganizationShell() {
   const { user } = useAuth();
   if (!user) return <SessionLoading />;
@@ -67,108 +180,40 @@ function Navigation({ close }: { close?: () => void }) {
   const context = useOrganization();
   return (
     <nav aria-label="Workspace navigation">
-      {context.hasPermission('analytics.read') && (
-        <NavLink
-          to={`/organizations/${context.selectedId}/dashboard`}
-          className={({ isActive }) => (isActive ? styles.active : styles.link)}
-          onClick={close}
-        >
-          Dashboard
-        </NavLink>
-      )}
-      {context.hasPermission('customer.read') && (
-        <NavLink
-          to={`/organizations/${context.selectedId}/customers`}
-          className={({ isActive }) => (isActive ? styles.active : styles.link)}
-          onClick={close}
-        >
-          Customers
-        </NavLink>
-      )}
-      {context.hasPermission('invoice.read') && (
-        <NavLink
-          to={`/organizations/${context.selectedId}/invoices`}
-          className={({ isActive }) => (isActive ? styles.active : styles.link)}
-          onClick={close}
-        >
-          Invoices
-        </NavLink>
-      )}
-      {context.hasPermission('payment.read') && (
-        <NavLink
-          to={`/organizations/${context.selectedId}/payments`}
-          className={({ isActive }) => (isActive ? styles.active : styles.link)}
-          onClick={close}
-        >
-          Payments
-        </NavLink>
-      )}
-      {context.hasPermission('expense.read') && (
-        <NavLink
-          to={`/organizations/${context.selectedId}/expenses`}
-          className={({ isActive }) => (isActive ? styles.active : styles.link)}
-          onClick={close}
-        >
-          Expenses
-        </NavLink>
-      )}
-      {context.hasPermission('analytics.read') &&
-        (
-          [
-            ['Cash Flow', 'cash-flow'],
-            ['Profit & Loss', 'profit-loss'],
-            ['Receivables Aging', 'receivables-aging'],
-          ] as const
-        ).map(([label, path]) => (
-          <NavLink
-            key={path}
-            to={`/organizations/${context.selectedId}/${path}`}
-            className={({ isActive }) => (isActive ? styles.active : styles.link)}
-            onClick={close}
-          >
-            {label}
-          </NavLink>
-        ))}
-      {context.hasPermission('notification.read') && (
-        <NavLink
-          to={`/organizations/${context.selectedId}/notifications`}
-          className={({ isActive }) => (isActive ? styles.active : styles.link)}
-          onClick={close}
-        >
-          Notifications
-        </NavLink>
-      )}
-      {(['Reports', 'Audit Logs'] as const)
-        .filter((label) =>
-          label === 'Reports'
+      {navigationGroups.map((group) => {
+        const visible = group.items.filter((item) =>
+          item.path === 'reports'
             ? context.hasPermission('report.read') || context.hasPermission('report.export')
-            : context.hasPermission('audit.read'),
-        )
-        .map((label) => (
-          <NavLink
-            key={label}
-            to={`/organizations/${context.selectedId}/${label === 'Reports' ? 'reports' : 'audit-logs'}`}
-            className={({ isActive }) => (isActive ? styles.active : styles.link)}
-            onClick={close}
-          >
-            {label}
-          </NavLink>
-        ))}
-      <NavLink
-        to={context.selectedId ? `/organizations/${context.selectedId}/workspace` : '/workspace'}
-        className={({ isActive }) => (isActive ? styles.active : styles.link)}
-        onClick={close}
-      >
-        Workspace
-      </NavLink>
-      {futureNavigation
-        .filter(([, permission]) => context.hasPermission(permission))
-        .map(([label]) => (
-          <span className={styles.future} key={label} aria-disabled="true">
-            {label}
-            <small>Coming soon</small>
-          </span>
-        ))}
+            : context.hasPermission(item.permission),
+        );
+        return visible.length ? (
+          <div className={styles.navGroup} key={group.title}>
+            <span className={styles.navHeading}>{group.title}</span>
+            {visible.map((item) => (
+              <NavLink
+                key={item.path}
+                to={`/organizations/${context.selectedId}/${item.path}`}
+                className={({ isActive }) => (isActive ? styles.active : styles.link)}
+                onClick={close}
+              >
+                <NavigationIcon name={item.icon} />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        ) : null;
+      })}
+      <div className={styles.navGroup}>
+        <span className={styles.navHeading}>Organization</span>
+        <NavLink
+          to={context.selectedId ? `/organizations/${context.selectedId}/workspace` : '/workspace'}
+          className={({ isActive }) => (isActive ? styles.active : styles.link)}
+          onClick={close}
+        >
+          <NavigationIcon name="overview" />
+          <span>Workspace</span>
+        </NavLink>
+      </div>
     </nav>
   );
 }
@@ -254,7 +299,12 @@ function WorkspaceLayout() {
           Skip to workspace
         </a>
         <aside className={styles.sidebar}>
-          <div className={styles.brand}>SME Finance</div>
+          <div className={styles.brand}>
+            <span className={styles.brandMark} aria-hidden="true">
+              ↗
+            </span>
+            <span>SME Finance</span>
+          </div>
           <Navigation />
         </aside>
         <div className={styles.content}>

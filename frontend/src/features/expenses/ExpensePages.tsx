@@ -16,6 +16,7 @@ import { CategoryPicker } from './CategoryPicker';
 import { ExpenseForm } from './ExpenseForm';
 import { LifecycleDialog } from './LifecycleDialog';
 import { ExpenseBoundary, ExpenseError } from './states';
+import { OperationsFilterToolbar } from '../../components/filters/OperationsFilterToolbar';
 import styles from './Expenses.module.css';
 export function ExpenseListPage() {
   const context = useOrganization();
@@ -54,15 +55,24 @@ function ExpenseList() {
     setCursors([undefined]);
   };
   const base = `/organizations/${org.id}/expenses`;
+  const advancedActive = [
+    filters.expenseDateFrom,
+    filters.expenseDateTo,
+    filters.sortBy !== defaultFilters.sortBy,
+    filters.sortOrder !== defaultFilters.sortOrder,
+    filters.limit !== defaultFilters.limit,
+  ].filter(Boolean).length;
+  const clearFilters = () => {
+    setVendor('');
+    setFilters({ ...defaultFilters });
+    setCursors([undefined]);
+  };
   return (
     <div className={styles.page}>
       <header className={styles.heading}>
         <div>
           <h1>Expenses</h1>
-          <p>
-            Cash already paid for {org.displayName ?? org.legalName}. Amounts and reporting remain
-            server-authoritative.
-          </p>
+          <p>Track business spending and expense records.</p>
         </div>
         <div className={styles.actions}>
           <Link to={`/organizations/${org.id}/expense-categories`}>Expense categories</Link>
@@ -73,72 +83,114 @@ function ExpenseList() {
           )}
         </div>
       </header>
-      <section className={styles.panel} aria-label="Expense filters">
-        <div className={styles.grid}>
-          <div className={styles.field}>
-            <label htmlFor="expense-vendor-search">Search vendor / payee</label>
-            <input
-              id="expense-vendor-search"
-              type="search"
-              value={vendor}
-              maxLength={200}
-              onChange={(event) => setVendor(event.target.value)}
-            />
-            <small>Literal case-insensitive vendor matching; no description search.</small>
-          </div>
-          {(
-            [
-              ['status', 'Expense status', ['ACTIVE', 'VOIDED']],
-              ['sortBy', 'Sort expenses by', ['expenseDate', 'createdAt', 'amount', 'vendorPayee']],
-              ['sortOrder', 'Expense sort order', ['desc', 'asc']],
-            ] as const
-          ).map(([field, label, options]) => (
-            <div key={field} className={styles.field}>
-              <label htmlFor={`expense-filter-${field}`}>{label}</label>
+      <OperationsFilterToolbar
+        ariaLabel="Expense filters"
+        activeAdvancedCount={advancedActive}
+        onClear={clearFilters}
+        primary={
+          <>
+            <div className={styles.field}>
+              <label htmlFor="expense-vendor-search">Search vendor / payee</label>
+              <input
+                id="expense-vendor-search"
+                type="search"
+                value={vendor}
+                maxLength={200}
+                onChange={(event) => setVendor(event.target.value)}
+              />
+              <small>Literal case-insensitive vendor matching; no description search.</small>
+            </div>
+            {([['status', 'Expense status', ['ACTIVE', 'VOIDED']]] as const).map(
+              ([field, label, options]) => (
+                <div key={field} className={styles.field}>
+                  <label htmlFor={`expense-filter-${field}`}>{label}</label>
+                  <select
+                    id={`expense-filter-${field}`}
+                    value={filters[field]}
+                    onChange={(event) => change({ [field]: event.target.value })}
+                  >
+                    {options.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                </div>
+              ),
+            )}
+          </>
+        }
+        advanced={
+          <>
+            {(
+              [
+                [
+                  'sortBy',
+                  'Sort expenses by',
+                  ['expenseDate', 'createdAt', 'amount', 'vendorPayee'],
+                ],
+                ['sortOrder', 'Expense sort order', ['desc', 'asc']],
+              ] as const
+            ).map(([field, label, options]) => (
+              <div key={field} className={styles.field}>
+                <label htmlFor={`expense-filter-${field}`}>{label}</label>
+                <select
+                  id={`expense-filter-${field}`}
+                  value={filters[field]}
+                  onChange={(event) => change({ [field]: event.target.value })}
+                >
+                  {options.map((value) => (
+                    <option key={value} value={value}>
+                      {value === 'expenseDate'
+                        ? 'Expense date'
+                        : value === 'createdAt'
+                          ? 'Created date'
+                          : value === 'vendorPayee'
+                            ? 'Vendor / payee'
+                            : value === 'amount'
+                              ? 'Amount'
+                              : value === 'desc'
+                                ? 'Descending'
+                                : 'Ascending'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+            {(['expenseDateFrom', 'expenseDateTo'] as const).map((field) => (
+              <div key={field} className={styles.field}>
+                <label htmlFor={`filter-${field}`}>
+                  Expense date {field.endsWith('From') ? 'from' : 'to'}
+                </label>
+                <input
+                  type="date"
+                  id={`filter-${field}`}
+                  value={filters[field]}
+                  onChange={(event) => change({ [field]: event.target.value })}
+                />
+              </div>
+            ))}
+            <div className={styles.field}>
+              <label htmlFor="expense-page-size">Expense page size</label>
               <select
-                id={`expense-filter-${field}`}
-                value={filters[field]}
-                onChange={(event) => change({ [field]: event.target.value })}
+                id="expense-page-size"
+                value={filters.limit}
+                onChange={(event) => change({ limit: Number(event.target.value) })}
               >
-                {options.map((value) => (
-                  <option key={value}>{value}</option>
+                {[25, 50, 100].map((limit) => (
+                  <option key={limit}>{limit}</option>
                 ))}
               </select>
             </div>
-          ))}
-          {(['expenseDateFrom', 'expenseDateTo'] as const).map((field) => (
-            <div key={field} className={styles.field}>
-              <label htmlFor={`filter-${field}`}>
-                Expense date {field.endsWith('From') ? 'from' : 'to'}
-              </label>
-              <input
-                type="date"
-                id={`filter-${field}`}
-                value={filters[field]}
-                onChange={(event) => change({ [field]: event.target.value })}
-              />
-            </div>
-          ))}
-          <div className={styles.field}>
-            <label htmlFor="expense-page-size">Expense page size</label>
-            <select
-              id="expense-page-size"
-              value={filters.limit}
-              onChange={(event) => change({ limit: Number(event.target.value) })}
-            >
-              {[25, 50, 100].map((limit) => (
-                <option key={limit}>{limit}</option>
-              ))}
-            </select>
-          </div>
+          </>
+        }
+        advancedSupplement={
           <CategoryPicker
             org={org.id}
             value={filters.categoryId}
             onChange={(categoryId) => change({ categoryId })}
             optional
           />
-        </div>
-      </section>
+        }
+      />
       {!valid ? (
         <p role="alert">
           Check vendor text, category ID and valid ordered dates (at most 1,825 days apart).

@@ -169,6 +169,7 @@ it('uses only returned cursors for next/previous and resets pagination for sort 
   await screen.findByText('Page 1');
   await user.click(screen.getByRole('button', { name: 'Next page' }));
   await screen.findByText('Page 2');
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   await user.selectOptions(screen.getByLabelText('Sort by'), 'updatedAt');
   await screen.findByText('Page 1');
   expect(reads.at(-1)?.searchParams.has('after')).toBe(false);

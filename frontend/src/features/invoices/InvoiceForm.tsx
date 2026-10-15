@@ -207,9 +207,14 @@ export function InvoiceForm({
               {...form.register('discount.value')}
               disabled={command.isPending}
               aria-invalid={!!form.formState.errors.discount?.value}
+              aria-describedby={
+                form.formState.errors.discount?.value ? 'discount-value-error' : undefined
+              }
             />
             {form.formState.errors.discount?.value && (
-              <p className={styles.error}>{form.formState.errors.discount.value.message}</p>
+              <p className={styles.error} id="discount-value-error" role="alert">
+                {form.formState.errors.discount.value.message}
+              </p>
             )}
           </div>
         </div>

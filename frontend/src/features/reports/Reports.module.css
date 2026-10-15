@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-width: var(--page-width);
   margin: auto;
   min-width: 0;
@@ -11,7 +11,7 @@
   padding: var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-medium);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -76,6 +76,9 @@
   padding: 0;
   margin: 0;
 }
+.card h3 {
+  margin-bottom: var(--space-2);
+}
 .facts {
   display: flex;
   flex-wrap: wrap;
@@ -102,10 +105,21 @@
 }
 .tableWrap td,
 .tableWrap th {
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   font-variant-numeric: tabular-nums;
+}
+.tableWrap thead th {
+  color: var(--color-secondary-text);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  background: #f8fafc;
+}
+.tableWrap tbody tr:hover {
+  background: var(--color-row-hover);
 }
 .tableWrap caption {
   text-align: left;
@@ -114,15 +128,24 @@
 }
 .status {
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.65rem;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--color-workspace);
 }
 .status[data-state='READY'] {
   color: var(--color-success-text);
+  background: var(--color-success-soft);
 }
 .status[data-state='FAILED'] {
   color: var(--color-danger-text);
+  background: #fef2f2;
 }
 .status[data-state='EXPIRED'] {
   color: var(--color-warning-text);
+  background: var(--color-warning-soft);
 }
 .skeleton {
   min-height: 7rem;

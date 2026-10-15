@@ -40,10 +40,7 @@ function Inbox() {
     <div className={styles.page}>
       <header className={styles.heading}>
         <h1>Notifications</h1>
-        <p>
-          Your inbox for {org.displayName ?? org.legalName}. Read and archive actions affect only
-          your notifications.
-        </p>
+        <p>Stay informed about important activity in your workspace.</p>
       </header>
       <div className={styles.controls}>
         <label>
@@ -99,12 +96,7 @@ function Inbox() {
         </button>
       </div>
       <p className={styles.note}>
-        This inbox refreshes on request or normal page/focus refetches; it is not real-time. A total
-        unread count is unavailable, so counts below cover this page only.
-      </p>
-      <p className={styles.note}>
-        Invoice reminders are visible as due-soon and overdue notifications. Delivery history, email
-        delivery status and reminder controls are unavailable.
+        Your notifications only. Refresh for the latest activity; unread counts cover this page.
       </p>
       {confirmation && <p role="status">{confirmation}</p>}
       {list.isPending || list.isFetching ? (
@@ -138,7 +130,7 @@ function Inbox() {
       ) : (
         data && (
           <>
-            <p aria-live="polite">
+            <p className={styles.counts} aria-live="polite">
               Unread on this page: {data.data.filter((row) => row.status === 'UNREAD').length}.
               Loaded notifications: {data.data.length}.
             </p>
@@ -263,15 +255,15 @@ function NotificationItem({
       className={`${styles.item} ${row.status === 'UNREAD' ? styles.unread : ''}`}
       aria-label={row.title}
     >
-      <div className={styles.meta}>
-        <span>{notificationLabel(row.type)}</span>
+      <div className={styles.itemHeading}>
+        <h2>{row.title}</h2>
         <span className={styles.state}>
           {row.status === 'UNREAD' ? 'Unread' : row.status === 'READ' ? 'Read' : 'Archived'}
         </span>
       </div>
-      <h2>{row.title}</h2>
       <p className={styles.body}>{row.body}</p>
       <div className={styles.meta}>
+        <span>{notificationLabel(row.type)}</span>
         {time('Created', row.createdAt)}
         {row.scheduledAt && time('Scheduled', row.scheduledAt)}
         {row.readAt && time('Read', row.readAt)}
