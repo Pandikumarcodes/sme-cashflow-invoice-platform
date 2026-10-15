@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom';
 import { useOrganization } from '../../organizations/OrganizationContext';
 import { notificationTimestamp } from '../notifications/presentation';
 import { ReportBoundary, Loading, ReadError, Pagination } from '../reports/presentation';
-import { auditDestination } from './presentation';
+import { auditDestination, auditActionLabel, auditResourceLabel } from './presentation';
 import { defaultFilters, auditFilterError, type AuditFilters } from './contracts';
 import { useAudit } from './queries';
-import styles from '../reports/Reports.module.css';
+import styles from './AuditLogs.module.css';
 export function AuditLogsPage() {
   const context = useOrganization();
   return (
@@ -36,10 +36,7 @@ function AuditLogs() {
     <div className={styles.page}>
       <header>
         <h1>Audit Logs</h1>
-        <p>
-          Read-only organization history. Actor names are not exposed; identifiers refer to
-          historical records.
-        </p>
+        <p>Review recorded activity across your organization.</p>
       </header>
       <section className={styles.panel}>
         <form
@@ -55,21 +52,12 @@ function AuditLogs() {
             }
           }}
         >
-          {(Object.keys(labels) as (keyof typeof labels)[]).map((field) => (
+          {(['occurredFrom', 'occurredTo'] as const).map((field) => (
             <label key={field}>
               {labels[field]}
               <input
                 value={draft[field]}
                 type={field.startsWith('occurred') ? 'date' : 'text'}
-                maxLength={
-                  field === 'action'
-                    ? 100
-                    : field === 'entityType'
-                      ? 50
-                      : field.endsWith('Id')
-                        ? 36
-                        : undefined
-                }
                 onChange={(event) => setDraft((old) => ({ ...old, [field]: event.target.value }))}
               />
             </label>
@@ -105,6 +93,31 @@ function AuditLogs() {
               ))}
             </select>
           </label>
+          <details className={styles.filterDetails}>
+            <summary>
+              Exact-match filters
+              {[draft.actorUserId, draft.action, draft.entityType, draft.entityId].some(Boolean)
+                ? ' (set)'
+                : ''}
+            </summary>
+            <div className={styles.exactFilters}>
+              {(['action', 'entityType', 'actorUserId', 'entityId'] as const).map((field) => (
+                <label key={field}>
+                  {labels[field]}
+                  <input
+                    value={draft[field]}
+                    maxLength={field === 'action' ? 100 : field === 'entityType' ? 50 : 36}
+                    onChange={(event) =>
+                      setDraft((old) => ({ ...old, [field]: event.target.value }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <p className={styles.note}>
+              Use original action codes and resource types for exact matches.
+            </p>
+          </details>
           <button>Apply audit filters</button>
           <button
             type="button"
@@ -135,9 +148,8 @@ function AuditLogs() {
           )}
         </form>
         <p className={styles.note}>
-          Dates filter UTC event instants using {org.timezone} calendar-day boundaries, including
-          the end day. Either bound may be omitted; two-sided ranges allow 1,825 inclusive days. New
-          events appear on refresh; pages are not a fixed snapshot.
+          Dates use {org.timezone}, including the end day. Either date is optional; ranges allow up
+          to 1,825 days. Refresh for new activity.
         </p>
       </section>
       {list.isPending || list.isFetching ? (
@@ -154,47 +166,66 @@ function AuditLogs() {
         data && (
           <>
             <section className={styles.panel}>
-              <h2>Organization activity</h2>
+              <div className={styles.sectionHeading}>
+                <h2>Organization activity</h2>
+                <span>Read-only history | {org.timezone}</span>
+              </div>
               {!data.data.length && <p>No audit entries match these filters.</p>}
               <ul className={styles.cards} aria-label="Audit history">
                 {data.data.map((row) => {
                   const destination = auditDestination(row, org.id, context.hasPermission);
                   return (
                     <li className={styles.card} key={row.id}>
-                      <article aria-label={row.action}>
-                        <h3>{row.action}</h3>
-                        <p>
-                          {row.actorType} · {row.outcome} · {row.source}
+                      <article aria-label={auditActionLabel(row.action)}>
+                        <div className={styles.recordHeading}>
+                          <h3>{auditActionLabel(row.action)}</h3>
+                          <time dateTime={row.occurredAt} title={row.occurredAt}>
+                            {notificationTimestamp(row.occurredAt, org.timezone)}
+                          </time>
+                        </div>
+                        <div className={styles.recordMeta}>
+                          <span>
+                            {row.actorType === 'USER'
+                              ? 'User activity'
+                              : row.actorType === 'WORKER'
+                                ? 'Background worker'
+                                : 'System activity'}
+                          </span>
+                          <span>{auditResourceLabel(row.entityType)}</span>
+                          <span className={styles.outcome} data-outcome={row.outcome}>
+                            {row.outcome === 'SUCCESS'
+                              ? 'Succeeded'
+                              : row.outcome === 'DENIED'
+                                ? 'Denied'
+                                : 'Failed'}
+                          </span>
+                        </div>
+                        <p className={styles.note}>
+                          {row.changedFields.length
+                            ? 'Changed fields: ' + row.changedFields.join(', ')
+                            : 'No displayed changes'}
                         </p>
-                        <time dateTime={row.occurredAt} title={row.occurredAt}>
-                          {notificationTimestamp(row.occurredAt, org.timezone)}
-                        </time>
-                        <dl className={styles.facts}>
-                          <div>
-                            <dt>Actor user ID</dt>
-                            <dd>{row.actorUserId ?? 'No human actor'}</dd>
-                          </div>
-                          <div>
-                            <dt>Membership ID</dt>
-                            <dd>{row.actorMembershipId ?? 'Not recorded'}</dd>
-                          </div>
-                          <div>
-                            <dt>Resource</dt>
-                            <dd>
-                              {row.entityType} ·{' '}
-                              {row.entityId ?? 'Historical identifier unavailable'}
-                            </dd>
-                          </div>
-                        </dl>
                         {destination && <Link to={destination}>Open related resource</Link>}
-                        <details>
+                        <details className={styles.eventDetails}>
                           <summary>View safe event details</summary>
-                          <p>
-                            Changed fields:{' '}
-                            {row.changedFields.length
-                              ? row.changedFields.join(', ')
-                              : 'No displayed changes'}
-                          </p>
+                          <dl className={styles.facts}>
+                            {[
+                              ['Original action code', row.action],
+                              ['Resource type', row.entityType],
+                              [
+                                'Resource identifier',
+                                row.entityId ?? 'Historical identifier unavailable',
+                              ],
+                              ['Actor user ID', row.actorUserId ?? 'No human actor'],
+                              ['Membership ID', row.actorMembershipId ?? 'Not recorded'],
+                              ['Source', row.source],
+                            ].map(([label, value]) => (
+                              <div key={label}>
+                                <dt>{label}</dt>
+                                <dd>{value}</dd>
+                              </div>
+                            ))}
+                          </dl>
                           {(['beforeData', 'afterData'] as const).map((key) => (
                             <div key={key}>
                               <h4>{key === 'beforeData' ? 'Before' : 'After'}</h4>

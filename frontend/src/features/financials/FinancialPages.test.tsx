@@ -4,7 +4,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import './FinancialPages';
+import '../analytics/AgingPage';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
@@ -25,9 +27,6 @@ import { cashReport, profitReport, agingReport } from './test-fixtures';
 import { type CashGrouping, type ProfitGrouping } from './contracts';
 import { financialKeys } from './query-keys';
 const disposers: (() => void)[] = [];
-beforeAll(async () => {
-  await import('./FinancialPages');
-});
 const gates: (() => void)[] = [];
 let requested: URL[] = [];
 const path = (kind = 'cash-flow', id = a.id) => `/organizations/${id}/${kind}`;

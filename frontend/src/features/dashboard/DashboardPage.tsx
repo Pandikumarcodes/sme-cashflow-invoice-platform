@@ -43,18 +43,21 @@ function DashboardOverview({ organization }: { organization: Organization }) {
     ? [
         {
           label: 'Cash inflow',
+          icon: '↙',
           value: totals.collections.collected,
           note: 'Recorded payments in range',
           tone: 'positive',
         },
         {
           label: 'Cash outflow',
+          icon: '↗',
           value: totals.spending.expenses,
           note: 'Active expenses in range',
           tone: 'neutral',
         },
         {
           label: 'Net cash flow',
+          icon: '≈',
           value: totals.cash.netCashFlow,
           note: 'Simplified cash-basis net result',
           tone: new FinancialDecimal(totals.cash.netCashFlow).isNegative()
@@ -63,18 +66,21 @@ function DashboardOverview({ organization }: { organization: Organization }) {
         },
         {
           label: 'Total invoiced',
+          icon: '▤',
           value: totals.billing.totalInvoiced,
           note: 'Currently issued invoices by issue date',
           tone: 'neutral',
         },
         {
           label: 'Outstanding receivables',
+          icon: '◷',
           value: totals.receivables.outstanding,
           note: `All eligible issued invoices as of ${today}`,
           tone: 'neutral',
         },
         {
           label: 'Overdue receivables',
+          icon: '!',
           value: totals.receivables.overdue,
           note: `Positive balances due before ${today}`,
           tone: 'warning',
@@ -84,7 +90,9 @@ function DashboardOverview({ organization }: { organization: Organization }) {
   return (
     <div className={styles.dashboard}>
       <header className={styles.heading}>
-        <p>{organization.displayName ?? organization.legalName}</p>
+        <p className={styles.eyebrow}>
+          {organization.displayName ?? organization.legalName} / Overview
+        </p>
         <h1>Financial overview</h1>
         <p>
           {organization.baseCurrency} · {organization.timezone}
@@ -191,8 +199,16 @@ function DashboardOverview({ organization }: { organization: Organization }) {
           <>
             <section aria-label="Financial summary" className={styles.metrics}>
               {metrics.map((metric) => (
-                <article key={metric.label} className={styles.metric}>
-                  <h2>{metric.label}</h2>
+                <article
+                  key={metric.label}
+                  className={`${styles.metric} ${styles[`${metric.tone}Card`]}`}
+                >
+                  <div className={styles.metricHead}>
+                    <h2>{metric.label}</h2>
+                    <span className={styles.metricIcon} aria-hidden="true">
+                      {metric.icon}
+                    </span>
+                  </div>
                   <p className={styles[metric.tone]}>{money(metric.value)}</p>
                   <small>{metric.note}</small>
                 </article>

@@ -33,4 +33,14 @@ npm.cmd run test:queues
 
 Run integration, E2E and queue suites sequentially; database tests require the guarded local `sme_cashflow_test` target via `DATABASE_URL_TEST`. Queue suites also require Redis. Folder restructuring needs no migration or reset; never recreate the schema or delete infrastructure volumes for this move.
 
+For non-destructive dependency diagnostics, run
+`node --env-file=.env scripts/diagnose-test-dependencies.js`. It requires the guarded
+test database URL and reports only bounded TCP reachability categories; an open
+port does not prove SQL/Redis readiness or current migrations. CI uses
+`scripts/prepare-ci-env.js` with `CI=true` and an explicit local
+`DATABASE_URL_TEST` to create an ignored test environment with ephemeral signing
+keys. It refuses production mode and refuses to overwrite an existing `.env`.
+Never use that generator for a workstation or production configuration. See
+[remediation evidence](../docs/production-readiness-remediation.md).
+
 Run a built API with `npm.cmd run start:prod`; run the independent worker with `npm.cmd run start:worker` or `npm.cmd run start:worker:prod`. Production environment is supplied externally. Install/run the frontend separately using [frontend setup](../frontend/README.md).

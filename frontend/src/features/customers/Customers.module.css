@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-width: var(--page-width);
   margin: 0 auto;
 }
@@ -23,7 +23,7 @@
   background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-medium);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
   min-width: 0;
 }
 .panel h1 {
@@ -94,6 +94,9 @@
   background: var(--color-card);
   color: var(--color-primary-text);
 }
+.secondary:hover {
+  background: var(--color-row-hover);
+}
 .danger {
   background: var(--color-danger-text);
   color: var(--color-sidebar-text);
@@ -114,6 +117,21 @@
 .archived {
   color: var(--color-secondary-text);
 }
+.active,
+.archived {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  font-weight: 700;
+}
+.active {
+  background: var(--color-success-soft);
+}
+.archived {
+  background: var(--color-workspace);
+}
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -122,10 +140,25 @@
 .table th,
 .table td {
   text-align: left;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border);
   overflow-wrap: anywhere;
   vertical-align: top;
+}
+.table thead th {
+  color: var(--color-secondary-text);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  background: #f8fafc;
+}
+.table tbody tr:hover {
+  background: var(--color-row-hover);
+}
+.table tbody th a {
+  color: var(--color-primary-text);
+  font-weight: 700;
 }
 .details {
   display: grid;

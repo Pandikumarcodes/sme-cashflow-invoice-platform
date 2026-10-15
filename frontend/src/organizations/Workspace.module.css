@@ -4,37 +4,87 @@
   background: var(--color-workspace);
 }
 .sidebar {
-  width: 16rem;
+  width: var(--sidebar-width);
   flex-shrink: 0;
-  padding: var(--space-5);
+  padding: var(--space-5) var(--space-3);
   background: var(--color-sidebar);
   color: var(--color-sidebar-text);
+  height: 100dvh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
 }
 .brand {
-  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 1.2rem;
   font-weight: 750;
-  margin-bottom: var(--space-6);
+  margin: 0 var(--space-2) var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid rgb(255 255 255 / 15%);
+  letter-spacing: -0.03em;
+}
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-small);
+  background: var(--color-navigation-active);
+  color: white;
+  font-size: 1.25rem;
 }
 .sidebar nav,
 .drawer nav {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
+}
+.navGroup {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.navHeading {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-sidebar-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .active,
 .link,
 .future {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: var(--space-3);
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-small);
   color: var(--color-sidebar-text);
   text-decoration: none;
+  font-size: var(--font-small);
+  font-weight: 500;
+}
+.link {
+  color: #e4eff1;
+}
+.link:hover {
+  background: var(--color-sidebar-hover);
+  color: white;
+}
+.link svg,
+.active svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
 }
 .active {
   background: var(--color-navigation-active);
   font-weight: 650;
+  box-shadow: inset 3px 0 0 #93c5fd;
 }
 .sidebar :focus-visible,
 .drawer :focus-visible {
@@ -55,7 +105,8 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-6);
+  min-height: 4.75rem;
+  padding: var(--space-2) var(--space-6);
   background: var(--color-card);
   border-bottom: 1px solid var(--color-border);
 }
@@ -63,8 +114,8 @@
   display: grid;
   gap: var(--space-1);
   min-width: 0;
-  max-width: 28rem;
-  flex: 1;
+  max-width: 17rem;
+  flex: 0 1 17rem;
 }
 .switcher label {
   font-size: var(--font-small);
@@ -84,6 +135,9 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-3);
+  margin-left: auto;
+  font-size: var(--font-small);
+  font-weight: 600;
 }
 .header button,
 .card button {
@@ -95,7 +149,46 @@
   cursor: pointer;
 }
 .main {
-  padding: var(--space-6);
+  padding: var(--space-5) clamp(var(--space-4), 2.5vw, var(--space-6));
+}
+.main :where(table) {
+  font-size: var(--font-small);
+}
+.main :where(thead) {
+  background: var(--color-row-hover);
+}
+.main :where(thead th) {
+  color: var(--color-secondary-text);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.main :where(tbody tr:hover) {
+  background: var(--color-row-hover);
+}
+.main :where(td, th) {
+  font-variant-numeric: tabular-nums;
+}
+.main :where(button:not(:disabled)):hover {
+  border-color: var(--color-border-strong);
+}
+.main :where(section > a, article > a) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding-block: 2px;
+}
+.main :where(summary) {
+  display: flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding-block: 2px;
+}
+.main :where(input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-primary-action);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--color-focus-soft);
 }
 .card {
   max-width: 60rem;
@@ -103,7 +196,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
   background: var(--color-card);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
 }
 .card h1 {
   overflow-wrap: anywhere;
@@ -243,5 +336,14 @@
   .account {
     width: 100%;
     justify-content: space-between;
+    margin-left: 0;
+  }
+}
+@media (max-width: 30rem) {
+  .header {
+    gap: var(--space-2);
+  }
+  .switcher {
+    flex: 1 1 0;
   }
 }

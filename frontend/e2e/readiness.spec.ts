@@ -102,6 +102,11 @@ test('simulated API: public forms, reduced motion and 200% effective reflow', as
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
+    if (path === '/login' || path === '/register')
+      await page.screenshot({
+        path: testInfo.outputPath(`${path.slice(1)}-form.png`),
+        fullPage: true,
+      });
   }
   await page.screenshot({ path: testInfo.outputPath('effective-200-percent.png'), fullPage: true });
 });
@@ -144,7 +149,11 @@ for (const width of [320, 1440]) {
     for (const path of [
       'dashboard',
       'customers',
+      'customers/new',
       'invoices',
+      'invoices/new',
+      'payments/new',
+      'expenses/new',
       'cash-flow',
       'notifications',
       'reports',

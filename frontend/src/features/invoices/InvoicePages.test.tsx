@@ -1,10 +1,11 @@
 import { StrictMode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { beforeAll, beforeEach, afterEach, expect, it } from 'vitest';
+import { beforeEach, afterEach, expect, it } from 'vitest';
+import './InvoicePages';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
@@ -15,7 +16,7 @@ import {
   apiRoot,
   authHandlers,
   authFailure,
-  deferred,
+  deferred as makeDeferred,
   testUser,
   tokenResponse,
 } from '../../test/auth-fixtures';
@@ -103,9 +104,12 @@ const choice = {
 };
 let reads: URL[];
 const dispose: (() => void)[] = [];
-beforeAll(async () => {
-  await import('./InvoicePages');
-});
+const gates: (() => void)[] = [];
+function deferred() {
+  const gate = makeDeferred();
+  gates.push(gate.resolve);
+  return gate;
+}
 function mount(suffix = '', org = a.id) {
   const query = createQueryClient();
   const session = createSession(query, apiRoot);
@@ -164,7 +168,9 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  cleanup();
   dispose.splice(0).forEach((f) => f());
+  gates.splice(0).forEach((release) => release());
 });
 async function completeCreate() {
   await screen.findByRole('heading', { name: 'Create invoice' });
@@ -224,6 +230,7 @@ it('debounces literal search and resets pagination for filters and sorting', asy
   await user.selectOptions(screen.getByLabelText('Invoice status'), 'ISSUED');
   await screen.findByText('INV-000001');
   expect(reads.at(-1)?.searchParams.has('after')).toBe(false);
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   await user.selectOptions(screen.getByLabelText('Sort invoices by'), 'invoiceNumber');
   await waitFor(() => expect(reads.at(-1)?.searchParams.get('sortBy')).toBe('invoiceNumber'));
 });
@@ -692,6 +699,7 @@ it('restarts invalid cursors and rejects invalid date ranges before requesting t
   await user.click(screen.getByRole('button', { name: 'Next invoices' }));
   await user.click(await screen.findByRole('button', { name: 'Restart invoice pagination' }));
   await screen.findByText('Invoice page 1');
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   fireEvent.change(screen.getByLabelText('Invoice date from'), { target: { value: '2026-10-31' } });
   fireEvent.change(screen.getByLabelText('Invoice date to'), { target: { value: '2026-10-01' } });
   await screen.findByText(/Check search length/);

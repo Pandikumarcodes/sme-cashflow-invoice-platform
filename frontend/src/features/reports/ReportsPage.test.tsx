@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import './ReportsPage';
+import '../audit/AuditLogsPage';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
@@ -289,7 +291,14 @@ it('renders read-only audit details, opaque actors and safe related resource lin
     'href',
     `/organizations/${a.id}/invoices/${exportId}`,
   );
-  expect(within(list).getByText('invoice.issued')).toBeInTheDocument();
+  expect(within(list).getByRole('heading', { name: 'Recorded activity' })).toBeVisible();
+  const details = within(list).getByText('View safe event details');
+  expect(within(list).getByText('invoice.issued')).not.toBeVisible();
+  await userEvent.click(details);
+  expect(within(list).getByText('invoice.issued')).toBeVisible();
+  expect(within(list).getByText('Actor user ID')).toBeVisible();
+  await userEvent.click(details);
+  expect(within(list).getByText('invoice.issued')).not.toBeVisible();
   expect(Object.fromEntries(reads.at(-1)!.searchParams)).toEqual({
     limit: '25',
     sortBy: 'occurredAt',
@@ -303,6 +312,7 @@ it('renders read-only audit details, opaque actors and safe related resource lin
 it('applies exact audit filters and ordering, without fetching actor profiles or a detail endpoint', async () => {
   mount('audit-logs');
   await screen.findByRole('list', { name: 'Audit history' });
+  await userEvent.click(screen.getByText('Exact-match filters'));
   await userEvent.type(screen.getByLabelText('Exact action'), 'invoice.issued');
   await userEvent.selectOptions(screen.getByLabelText('Audit order'), 'asc');
   await userEvent.click(screen.getByRole('button', { name: 'Apply audit filters' }));
@@ -310,10 +320,50 @@ it('applies exact audit filters and ordering, without fetching actor profiles or
   expect(reads.at(-1)!.searchParams.get('sortOrder')).toBe('asc');
   expect(reads.every((url) => url.pathname.endsWith('/audit-logs'))).toBe(true);
 });
+it('presents verified audit activity and safe metadata while preserving cursor navigation', async () => {
+  server.use(
+    http.get(`${root}/audit-logs`, ({ request }) => {
+      const url = new URL(request.url);
+      reads.push(url);
+      return HttpResponse.json(
+        page(
+          [
+            auditFixture({
+              action: 'INVOICE_ISSUED',
+              changedFields: ['status', 'password'],
+              afterData: {
+                status: 'ISSUED',
+                password: 'private-secret',
+                email: 'private@example.test',
+              },
+              metadata: { token: 'private-token' },
+            }),
+          ],
+          25,
+          url.searchParams.has('after') ? null : 'opaque_next',
+        ),
+      );
+    }),
+  );
+  mount('audit-logs');
+  const list = await screen.findByRole('list', { name: 'Audit history' });
+  expect(within(list).getByRole('heading', { name: 'Invoice issued' })).toBeVisible();
+  await userEvent.click(within(list).getByText('View safe event details'));
+  expect(within(list).getByText('INVOICE_ISSUED')).toBeVisible();
+  expect(within(list).getByText('ISSUED')).toBeVisible();
+  expect(list.textContent).not.toMatch(/private-secret|private@example|private-token|password/);
+  await userEvent.click(screen.getByRole('button', { name: 'Next records' }));
+  await waitFor(() => expect(reads.at(-1)!.searchParams.get('after')).toBe('opaque_next'));
+  await screen.findByRole('list', { name: 'Audit history' });
+  expect(screen.getByText('Page 2')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Previous records' }));
+  await waitFor(() => expect(reads.at(-1)!.searchParams.has('after')).toBe(false));
+});
 it('blocks invalid audit filter UUIDs before changing the query', async () => {
   mount('audit-logs');
   await screen.findByRole('list', { name: 'Audit history' });
   const count = reads.length;
+  await userEvent.click(screen.getByText('Exact-match filters'));
   await userEvent.type(screen.getByLabelText('Entity ID'), 'bad');
   await userEvent.click(screen.getByRole('button', { name: 'Apply audit filters' }));
   await screen.findByText('Enter valid actor/entity UUIDs.');

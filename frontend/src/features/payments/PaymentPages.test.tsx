@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, afterEach, expect, it } from 'vitest';
+import './PaymentPages';
+import '../invoices/InvoicePages';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { createSession } from '../../auth/session';
 import { createQueryClient } from '../../app/query-client';
@@ -144,6 +146,7 @@ async function openReversal() {
 }
 it('renders lazy payment history with exact amounts and permission-aware navigation', async () => {
   const { query } = mount();
+  await screen.findByRole('heading', { name: 'Payments' });
   await screen.findByRole('table', { name: 'Payment history' });
   expect(screen.getByRole('link', { name: 'Payments' })).toHaveAttribute('aria-current', 'page');
   expect(screen.getByText('$40.00 USD')).toBeInTheDocument();
@@ -172,6 +175,7 @@ it('uses server cursors, revisits previous pages and resets on supported filters
     }),
   );
   mount();
+  await screen.findByRole('heading', { name: 'Payments' });
   await screen.findByRole('table');
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Next payments' }));
@@ -181,10 +185,11 @@ it('uses server cursors, revisits previous pages and resets on supported filters
   await user.click(screen.getByRole('button', { name: 'Previous payments' }));
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.has('after')).toBe(false);
+  await user.click(screen.getByRole('button', { name: 'More filters' }));
   await user.selectOptions(screen.getByLabelText('Sort payments by'), 'amount');
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.get('sortBy')).toBe('amount');
-  await user.selectOptions(screen.getByLabelText('Payment method filter'), 'BANK_TRANSFER');
+  await user.selectOptions(screen.getByLabelText('Payment method'), 'BANK_TRANSFER');
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.get('method')).toBe('BANK_TRANSFER');
   await user.selectOptions(screen.getByLabelText('Payment page size'), '50');
@@ -193,9 +198,11 @@ it('uses server cursors, revisits previous pages and resets on supported filters
 });
 it('supports invoice-related history and validates filters before financial requests', async () => {
   mount(`?invoiceId=${invoiceId}`);
+  await screen.findByRole('heading', { name: 'Payments' });
   await screen.findByRole('table');
   expect(reads.at(-1)?.searchParams.get('invoiceId')).toBe(invoiceId);
   const count = reads.length;
+  fireEvent.click(screen.getByRole('button', { name: 'More filters (1 active)' }));
   fireEvent.change(screen.getByLabelText('Payment date from'), { target: { value: '2026-10-02' } });
   fireEvent.change(screen.getByLabelText('Payment date to'), { target: { value: '2026-10-01' } });
   expect(await screen.findByRole('alert')).toHaveTextContent('ordered');

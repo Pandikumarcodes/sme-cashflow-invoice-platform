@@ -63,7 +63,15 @@ GlobalExceptionFilter.prototype.mapException = function (exception, requestId) {
         P2034: 'CONCURRENT_TRANSACTION',
         P2037: 'CONNECTION_LIMIT',
       }[exception?.code] ?? 'UNEXPECTED_FAILURE';
-    console.warn(`Guarded live HTTP failure category: ${category}`);
+    console.warn(
+      JSON.stringify({
+        event: 'guarded_live_http_failure',
+        category,
+        requestId,
+        status: mapped.status,
+        timestamp: new Date().toISOString(),
+      }),
+    );
   }
   return mapped;
 };

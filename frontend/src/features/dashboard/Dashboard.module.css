@@ -1,26 +1,43 @@
 .dashboard {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-width: var(--page-width);
   margin: 0 auto;
 }
 .heading h1 {
-  margin: var(--space-1) 0;
+  margin: var(--space-1) 0 var(--space-2);
 }
 .heading p {
   margin: 0;
   color: var(--color-secondary-text);
   overflow-wrap: anywhere;
 }
+.eyebrow {
+  color: var(--color-primary-action) !important;
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-card);
 }
 .filters div {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
+}
+.filters label {
+  font-size: var(--font-xs);
+  font-weight: 650;
+  color: var(--color-secondary-text);
 }
 .filters input,
 .filters select {
@@ -50,9 +67,14 @@
   color: var(--color-secondary-text);
   font-size: var(--font-small);
 }
+.range {
+  font-size: var(--font-xs);
+}
 .disclosure {
   padding: var(--space-3) var(--space-4);
-  border-left: 3px solid var(--color-border);
+  border-left: 3px solid var(--color-primary-action);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+  background: #edf4ff;
 }
 .metrics {
   display: grid;
@@ -61,27 +83,70 @@
 }
 .metric,
 .panel {
-  padding: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-medium);
   background: var(--color-card);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
   min-width: 0;
 }
 .metric h2 {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 550;
+  font-size: var(--font-small);
+  font-weight: 650;
+  color: var(--color-secondary-text);
+}
+.metricHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.metricIcon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-small);
+  background: var(--color-workspace);
+  color: var(--color-primary-action);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.positiveCard {
+  border-top: 3px solid var(--color-success);
+}
+.negativeCard {
+  border-top: 3px solid var(--color-danger);
+}
+.warningCard {
+  border-top: 3px solid var(--color-warning);
+}
+.neutralCard {
+  border-top: 3px solid var(--color-primary-action);
+}
+.positiveCard .metricIcon {
+  color: var(--color-success-text);
+  background: var(--color-success-soft);
+}
+.negativeCard .metricIcon {
+  color: var(--color-danger-text);
+  background: #fef2f2;
+}
+.warningCard .metricIcon {
+  color: var(--color-warning-text);
+  background: var(--color-warning-soft);
 }
 .metric p {
   font-size: clamp(1.15rem, 2.5vw, 1.75rem);
   font-weight: 700;
-  margin: var(--space-3) 0;
+  margin: var(--space-2) 0 var(--space-1);
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
 .metric small {
   color: var(--color-secondary-text);
+  line-height: 1.4;
 }
 .positive {
   color: var(--color-success-text);
@@ -121,10 +186,16 @@
 }
 .tableWrap th,
 .tableWrap td {
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
+}
+.tableWrap thead {
+  background: var(--color-row-hover);
+}
+.tableWrap tbody tr:hover {
+  background: var(--color-row-hover);
 }
 @media (max-width: 64rem) {
   .metrics {

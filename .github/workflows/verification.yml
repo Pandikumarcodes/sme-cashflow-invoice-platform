@@ -1,0 +1,236 @@
+name: Verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  frontend-quality:
+    name: Frontend static quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run format:check
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+  backend-quality:
+    name: Backend static quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: npm run lint
+        working-directory: backend
+      - run: npm run format:check
+        working-directory: backend
+      - run: npm run build
+        working-directory: backend
+      - run: npm run verify:api-inventory
+        working-directory: backend
+
+  backend-integration:
+    name: Backend database, HTTP E2E, and queue tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL_TEST: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+      DATABASE_URL: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sme_test
+          POSTGRES_PASSWORD: sme_ci_only
+          POSTGRES_DB: sme_cashflow_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U sme_test -d sme_cashflow_test" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: node scripts/prepare-ci-env.js
+        working-directory: backend
+      - run: node --env-file=.env scripts/migrate-test-database.js
+        working-directory: backend
+      - run: npm run db:migrate:status:test
+        working-directory: backend
+      # Sequential: backend suites clear the same guarded test database.
+      - run: npm run test:integration
+        working-directory: backend
+      - run: npm run test:e2e
+        working-directory: backend
+      - run: npm run test:queues
+        working-directory: backend
+
+  frontend-vitest:
+    name: Frontend Vitest shard ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Record shard inventory
+        run: npm exec vitest list -- --pool=forks --maxWorkers=1 --shard=${{ matrix.shard }}/4 | tee vitest-shard-${{ matrix.shard }}-inventory.log
+        working-directory: frontend
+      - name: Run complete shard
+        run: set -o pipefail; npm run test -- --pool=forks --maxWorkers=1 --shard=${{ matrix.shard }}/4 --reporter=verbose 2>&1 | tee vitest-shard-${{ matrix.shard }}.log
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: frontend-vitest-shard-${{ matrix.shard }}-failure
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            frontend/vitest-shard-${{ matrix.shard }}.log
+            frontend/vitest-shard-${{ matrix.shard }}-inventory.log
+
+  backend-unit:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: npm run test:unit
+        working-directory: backend
+
+  browser-verification:
+    name: Frontend Playwright (simulated API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: frontend-playwright-simulated-failure
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            frontend/playwright-report
+            frontend/test-results/simulated
+
+  live-integration:
+    name: Frontend Playwright (live backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL_TEST: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+      DATABASE_URL: postgresql://sme_test:sme_ci_only@localhost:5432/sme_cashflow_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sme_test
+          POSTGRES_PASSWORD: sme_ci_only
+          POSTGRES_DB: sme_cashflow_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U sme_test -d sme_cashflow_test" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run db:generate
+        working-directory: backend
+      - run: node scripts/prepare-ci-env.js
+        working-directory: backend
+      - run: node --env-file=.env scripts/migrate-test-database.js
+        working-directory: backend
+      - run: npm run db:migrate:status:test
+        working-directory: backend
+      - run: npm run build
+        working-directory: backend
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e:live
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: frontend-playwright-live-failure
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            frontend/playwright-report/live
+            frontend/test-results/live
