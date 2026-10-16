@@ -1,0 +1,180 @@
+# Proposed, unprovisioned Render Blueprint for the first staging environment.
+# Review resource region, plans, secret values, and custom-domain choices before any sync.
+# This file deliberately has no migration command and disables automatic deploys.
+services:
+  - type: web
+    name: sme-staging-api
+    runtime: node
+    region: oregon
+    plan: 0.5c-512mb
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npm run db:generate && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /api/v1/health/ready
+    maxShutdownDelaySeconds: 120
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sme-staging-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: sme-staging-key-value
+          type: keyvalue
+          property: connectionString
+      - key: QUEUE_PREFIX
+        value: sme:staging
+      - key: WORKER_CONCURRENCY
+        value: "2"
+      - key: EMAIL_PROVIDER
+        value: disabled
+      - key: REPORT_STORAGE_PROVIDER
+        value: s3
+      - key: REPORT_S3_OBJECT_PREFIX
+        value: staging/reports
+      - key: REPORT_EXPIRY_HOURS
+        value: "24"
+      - key: AUTH_JWT_ISSUER
+        value: sme-staging-api
+      - key: AUTH_JWT_AUDIENCE
+        value: sme-staging-client
+      - key: AUTH_JWT_KEY_ID
+        value: staging-1
+      - key: AUTH_COOKIE_NAME
+        value: sme_staging_refresh
+      - key: AUTH_RATE_LIMIT_PREFIX
+        value: sme:staging:auth-rate
+      - key: AUTH_REGISTER_RATE_LIMIT_PER_HOUR
+        value: "5"
+      - key: AUTH_LOGIN_RATE_LIMIT_PER_MINUTE
+        value: "5"
+      - key: AUTH_LOGIN_RATE_LIMIT_PER_HOUR
+        value: "20"
+      - key: AUTH_REFRESH_RATE_LIMIT_PER_MINUTE
+        value: "30"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: CORS_ORIGINS
+        sync: false
+      - key: AUTH_ACCESS_PRIVATE_KEY_BASE64
+        sync: false
+      - key: AUTH_ACCESS_PUBLIC_KEY_BASE64
+        sync: false
+      - key: REPORT_S3_BUCKET
+        sync: false
+      - key: REPORT_S3_REGION
+        sync: false
+      - key: REPORT_S3_ACCESS_KEY_ID
+        sync: false
+      - key: REPORT_S3_SECRET_ACCESS_KEY
+        sync: false
+
+  - type: worker
+    name: sme-staging-worker
+    runtime: node
+    region: oregon
+    plan: 0.5c-512mb
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npm run db:generate && npm run build
+    startCommand: npm run start:worker:prod
+    maxShutdownDelaySeconds: 120
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sme-staging-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: sme-staging-key-value
+          type: keyvalue
+          property: connectionString
+      - key: QUEUE_PREFIX
+        value: sme:staging
+      - key: WORKER_CONCURRENCY
+        value: "2"
+      - key: EMAIL_PROVIDER
+        value: disabled
+      - key: REPORT_STORAGE_PROVIDER
+        value: s3
+      - key: REPORT_S3_OBJECT_PREFIX
+        value: staging/reports
+      - key: REPORT_EXPIRY_HOURS
+        value: "24"
+      - key: AUTH_JWT_ISSUER
+        value: sme-staging-api
+      - key: AUTH_JWT_AUDIENCE
+        value: sme-staging-client
+      - key: AUTH_JWT_KEY_ID
+        value: staging-1
+      - key: AUTH_COOKIE_NAME
+        value: sme_staging_refresh
+      - key: AUTH_RATE_LIMIT_PREFIX
+        value: sme:staging:auth-rate
+      - key: AUTH_REGISTER_RATE_LIMIT_PER_HOUR
+        value: "5"
+      - key: AUTH_LOGIN_RATE_LIMIT_PER_MINUTE
+        value: "5"
+      - key: AUTH_LOGIN_RATE_LIMIT_PER_HOUR
+        value: "20"
+      - key: AUTH_REFRESH_RATE_LIMIT_PER_MINUTE
+        value: "30"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: CORS_ORIGINS
+        sync: false
+      - key: AUTH_ACCESS_PRIVATE_KEY_BASE64
+        sync: false
+      - key: AUTH_ACCESS_PUBLIC_KEY_BASE64
+        sync: false
+      - key: REPORT_S3_BUCKET
+        sync: false
+      - key: REPORT_S3_REGION
+        sync: false
+      - key: REPORT_S3_ACCESS_KEY_ID
+        sync: false
+      - key: REPORT_S3_SECRET_ACCESS_KEY
+        sync: false
+
+  - type: web
+    name: sme-staging-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci --include=dev && npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: off
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+
+  - type: keyvalue
+    name: sme-staging-key-value
+    region: oregon
+    plan: 256mb
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+databases:
+  - name: sme-staging-postgres
+    region: oregon
+    plan: 0.5c-1g
+    postgresMajorVersion: "16"
+    databaseName: sme_cashflow_staging
+    user: sme_staging_app
+    diskSizeGB: 15
+    connectionPool: none
+    ipAllowList: []

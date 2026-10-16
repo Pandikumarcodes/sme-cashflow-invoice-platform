@@ -21,6 +21,25 @@ describe('RedisConnection', () => {
     });
   });
 
+  it('parses a managed Redis URL without retaining the connection string', () => {
+    const service = new RedisConnection({
+      getOrThrow: () => ({
+        ...config,
+        url: 'rediss://default:secret%2Fvalue@cache.example.com:6380/4',
+      }),
+    });
+
+    expect(service.getConnectionOptions({ maxRetriesPerRequest: null })).toEqual({
+      host: 'cache.example.com',
+      port: 6380,
+      db: 4,
+      username: 'default',
+      password: 'secret/value',
+      tls: {},
+      maxRetriesPerRequest: null,
+    });
+  });
+
   it('closes a ready connection gracefully', async () => {
     const service = new RedisConnection({ getOrThrow: () => config });
     const quit = jest.fn().mockResolvedValue('OK');

@@ -12,6 +12,22 @@ export class RedisConnection {
   }
 
   getConnectionOptions(overrides = {}) {
+    if (this.config.url) {
+      const url = new URL(this.config.url);
+      const database =
+        url.pathname === '' || url.pathname === '/'
+          ? 0
+          : Number.parseInt(url.pathname.slice(1), 10);
+      return {
+        host: url.hostname,
+        port: url.port ? Number.parseInt(url.port, 10) : 6379,
+        db: database,
+        ...(url.username ? { username: decodeURIComponent(url.username) } : {}),
+        ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
+        ...(url.protocol === 'rediss:' ? { tls: {} } : {}),
+        ...overrides,
+      };
+    }
     return {
       host: this.config.host,
       port: this.config.port,

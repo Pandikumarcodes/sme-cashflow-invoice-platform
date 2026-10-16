@@ -156,7 +156,7 @@ export class ReportGenerationService {
         });
         return true;
       });
-      if (!saved) await this.storage.discard(artifact.key);
+      if (!saved) await this.storage.discard(artifact.key, job.organizationId);
     } catch (error) {
       // Stable codes only: no ORM/provider/path details become report metadata.
       const permanent = PERMANENT.has(error.code);
@@ -196,7 +196,7 @@ export class ReportGenerationService {
           });
         }
       });
-      if (artifact && !keepArtifact) await this.storage.discard(artifact.key);
+      if (artifact && !keepArtifact) await this.storage.discard(artifact.key, job.organizationId);
       if (keepArtifact) return;
       if (!permanent && claim.attempt < 3) throw new Error('REPORT_RETRY');
     }

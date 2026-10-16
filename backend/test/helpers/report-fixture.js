@@ -18,11 +18,11 @@ export const command = (type = 'INVOICE_REGISTER', parameters = REPORT_RANGE) =>
   format: 'CSV',
   parameters: type === 'RECEIVABLES' ? { asOfDate: '2026-02-01' } : parameters,
 });
-export function reportFixture(fixture) {
+export function reportFixture(fixture, storageOverride) {
   const base = resolve('.private/report-tests');
   const directory = resolve(base, randomUUID());
   const config = { get: (key) => (key === 'REPORT_STORAGE_DIRECTORY' ? directory : 24) };
-  const storage = new ReportStorage(config);
+  const storage = storageOverride ?? new ReportStorage(config);
   const cash = new CashFlowReader(),
     performance = new ProfitLossReader(cash),
     analytics = new AnalyticsReader(cash);

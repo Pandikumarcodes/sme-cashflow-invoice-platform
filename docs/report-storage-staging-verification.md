@@ -1,0 +1,57 @@
+# Report storage staging verification
+
+Date: 2026-10-16. This milestone changes only the report artifact storage boundary and its configuration. No cloud bucket was created or contacted, no deployment occurred, and no Prisma model, migration, financial rule, API route or frontend behavior changed.
+
+## Previous flow and blocker
+
+`ReportsController.create` calls `ReportsService.request`, which transactionally creates `ReportExport`, an audit row and a versioned PostgreSQL pending event. `ReportWorkers` dispatches and consumes the BullMQ event. `ReportGenerationService` reloads tenant-scoped data, builds a bounded CSV, writes through `ReportStorage`, then marks the export READY and records its private key/checksum. `ReportsController.download` calls `ReportsService.download`: current membership, `REPORT_EXPORT` permission, tenant scope, requester/export state and expiry are checked; bytes are read outside the transaction, then access and status are rechecked before download audit. The response remains `text/csv; charset=utf-8` with the existing attachment filename and private no-store cache header.
+
+Previously `ReportStorage` used only `REPORT_STORAGE_DIRECTORY`. A worker on one filesystem wrote a CSV that an independently deployed API on another filesystem could not read. Render persistent disks cannot be mounted by another service, so adding separate disks would not solve this. The initial readiness assessment is [here](staging-deployment-readiness.md).
+
+## Storage design and object keys
+
+`ReportStorage` retains the narrow `write(organizationId, bytes)`, `read(key, checksum, organizationId)` and `discard(key, organizationId)` contract. It selects local filesystem storage for development/tests or `S3ReportStorage` for deployed processes. The new adapter uses the S3-compatible SDK with a configured private bucket and explicit credentials. API and worker construct independent clients from the same configuration. No public URL or bucket name appears in the `ReportExport` response; PostgreSQL stores only an opaque relative key and SHA-256 checksum. The object path is `<configured-prefix>/<organization-UUID>/<random-UUID>.csv`. Prefix and key validation reject traversal and cross-tenant use. `PutObject` uses create-only semantics (`If-None-Match: *`), a random per-attempt key, and a 10 MiB maximum. Deletion also requires the trusted organization ID and validates it against the key. Each retry may leave an unreferenced object if the upload succeeded but its acknowledgment or process was lost; a bucket lifecycle rule must collect these.
+
+For reads, the API selects the authorized `ReportExport` row before retrieving bytes; the key is not authorization evidence. The S3 adapter bounds the received stream to 10 MiB, checks declared length when available, and verifies the PostgreSQL checksum. The existing HTTP API buffers at most the existing 10 MiB cap before returning `StreamableFile`; no new unbounded buffering was added. Missing, changed, truncated, oversized or timed-out objects become the existing safe `EXPORT_ARTIFACT_UNAVAILABLE` response, without bucket or credential details. Successful upload is required before the READY transaction. Interrupted/failed jobs retain the existing PostgreSQL claim and retry state. `discard` uses only validated private keys for obsolete provisional artifacts.
+
+## Configuration
+
+Set these identically for API and worker in the hosting platform's secret store. Keep `backend/.env.example` as a local example, never commit real values. SDK access and secret keys are explicit to avoid accidentally using a developer machine's credential chain. The endpoint is optional for AWS S3 and required when the chosen S3-compatible provider specifies one; configured custom endpoints must use HTTPS.
+
+| Variable                      | Local              | Staging / production                                                       |
+| ----------------------------- | ------------------ | -------------------------------------------------------------------------- |
+| `REPORT_STORAGE_PROVIDER`     | `local` (default)  | `s3` (required in `NODE_ENV=production`)                                   |
+| `REPORT_STORAGE_DIRECTORY`    | `.private/reports` | Unused by S3 adapter                                                       |
+| `REPORT_S3_BUCKET`            | Unused             | Private bucket name                                                        |
+| `REPORT_S3_REGION`            | Unused             | Provider region                                                            |
+| `REPORT_S3_ENDPOINT`          | Unused             | Optional HTTPS provider endpoint                                           |
+| `REPORT_S3_ACCESS_KEY_ID`     | Unused             | Secret-store credential                                                    |
+| `REPORT_S3_SECRET_ACCESS_KEY` | Unused             | Secret-store credential                                                    |
+| `REPORT_S3_OBJECT_PREFIX`     | Unused             | Dedicated namespace, e.g. `staging/reports`                                |
+| `REPORT_EXPIRY_HOURS`         | 24 by default      | Authorization expiry, 1–168 hours; distinct from physical object lifecycle |
+
+`env.schema.js` fails startup for incomplete S3 configuration and for local storage in production mode. Use different buckets or credentials and prefixes for staging and production. Restrict credentials to only the report prefix and required put/get/delete operations; block all public access, use provider encryption and HTTPS, and disallow browser access. Do not put credentials in frontend Vite variables or GitHub Actions verification jobs. The SDK client's own retry limit is two attempts; business retry remains controlled by the existing PostgreSQL/BullMQ flow.
+
+## Local development and staging checks
+
+Local API and worker can continue using `.private/reports` from the same `backend/` working directory. Tests use the local adapter or a fake S3 SDK client; they require no real bucket, external upload or cloud credentials. The deterministic PostgreSQL integration test makes distinct worker-side and API-side `S3ReportStorage` instances against a fake shared object map, creates an export through the existing service, runs the worker use case, and downloads with the independent API instance. It also checks cross-tenant rejection and missing-object behavior.
+
+Before staging, provision the private bucket and scoped credentials, set identical storage settings in API and worker, and configure an object lifecycle rule that removes expired and orphaned CSVs after a retention period longer than `REPORT_EXPIRY_HOURS` plus operational recovery margin. PostgreSQL status changes to EXPIRED on access/list/detail as before; no timed physical deletion scheduler was added. Confirm the selected provider supports `If-None-Match: *`, private GET/PUT/DELETE, SDK endpoint signing, object encryption and lifecycle rules. Run a synthetic export, download from the separately deployed API, deny a foreign tenant, restart both processes, and verify download until expiry and denial after expiry. Review bucket logs without exposing object content or credentials.
+
+## Test evidence and remaining risks
+
+Checks run from `backend/` unless stated otherwise:
+
+| Command                                                                                             | Result                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm.cmd run test -- s3-report-storage.spec.js report-storage.spec.js env.schema.spec.js`           | Passed: 3 suites, 25 tests.                                                                                                                                                                                                |
+| `npm.cmd run test`                                                                                  | Passed: 49 suites, 313 tests.                                                                                                                                                                                              |
+| `npm.cmd run lint`                                                                                  | Passed.                                                                                                                                                                                                                    |
+| `npm.cmd run format:check`                                                                          | Passed.                                                                                                                                                                                                                    |
+| `npm.cmd run build`                                                                                 | Passed: Babel compiled 225 files.                                                                                                                                                                                          |
+| `npm.cmd run db:migrate:status:test`                                                                | Could not complete: Prisma could not reach `localhost:5432`.                                                                                                                                                               |
+| `npm.cmd run test:integration -- reports.integration-spec.js`                                       | Attempted; setup failed for all 12 tests because the guarded local PostgreSQL service at `localhost:5432` is unavailable. The new independent API/worker test therefore still needs execution against `sme_cashflow_test`. |
+| `git diff --check`                                                                                  | Passed.                                                                                                                                                                                                                    |
+| `prettier --check docs/report-storage-staging-verification.md docs/staging-deployment-readiness.md` | Passed.                                                                                                                                                                                                                    |
+
+Queue and HTTP E2E suites were not run because the required local PostgreSQL and Redis ports (`5432`, `6379`) are not listening, and Docker is unavailable in this shell. `npm.cmd run verify:api-inventory` passed with all 65 routes unchanged. No actual S3 request or credential was used. Cloud behavior still needs staging verification: provider API compatibility, TLS/private access policy, lifecycle timing, credential rotation and latency. Other readiness findings (Redis endpoint/TLS fit, database backups and pools, proxy, domains/CORS/cookies and release procedure) remain open. This change alone does not make the whole project staging-ready.

@@ -5,7 +5,40 @@ const authKeys = {
     'MC4CAQAwBQYDK2VwBCIEIDdyP69H0Zo0OMz9ELCqVFpF9wwAIH2Fm6GGNtW6YRX8',
   AUTH_ACCESS_PUBLIC_KEY_BASE64: 'MCowBQYDK2VwAyEABdqDMyeA8N8yOW/It/UtBCMURg8cJkEWDd0PiBwYeUw=',
 };
+const s3 = {
+  REPORT_STORAGE_PROVIDER: 's3',
+  REPORT_S3_BUCKET: 'private-report-artifacts',
+  REPORT_S3_REGION: 'us-east-1',
+  REPORT_S3_ACCESS_KEY_ID: 'test-id',
+  REPORT_S3_SECRET_ACCESS_KEY: 'test-secret',
+  REPORT_S3_OBJECT_PREFIX: 'staging/reports',
+};
 describe('environment configuration', () => {
+  it('requires complete private object storage configuration and rejects insecure endpoints', () => {
+    const base = {
+      DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
+      ...authKeys,
+    };
+    for (const field of Object.keys(s3).filter((name) => name !== 'REPORT_STORAGE_PROVIDER')) {
+      const invalid = { ...s3 };
+      delete invalid[field];
+      expect(() => parseEnvironment({ ...base, ...invalid })).toThrow(field);
+    }
+    expect(() =>
+      parseEnvironment({ ...base, ...s3, REPORT_S3_ENDPOINT: 'http://objects.example.com' }),
+    ).toThrow();
+    expect(() =>
+      parseEnvironment({ ...base, ...s3, REPORT_S3_OBJECT_PREFIX: '../other' }),
+    ).toThrow();
+    expect(parseEnvironment({ ...base, ...s3 }).REPORT_STORAGE_PROVIDER).toBe('s3');
+    expect(() =>
+      parseEnvironment({
+        ...base,
+        NODE_ENV: 'production',
+        CORS_ORIGINS: 'https://app.example.com',
+      }),
+    ).toThrow('private S3 report storage');
+  });
   it('bounds report expiry and requires a private storage directory setting', () => {
     for (const values of [
       { REPORT_EXPIRY_HOURS: '0' },
@@ -36,12 +69,28 @@ describe('environment configuration', () => {
         }),
       ).toThrow();
   });
+  it('accepts managed Redis URLs and rejects unsupported URL components', () => {
+    const base = {
+      DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
+      ...authKeys,
+    };
+    expect(
+      parseEnvironment({ ...base, REDIS_URL: 'redis://cache.internal:6379/2' }).REDIS_URL,
+    ).toBe('redis://cache.internal:6379/2');
+    for (const REDIS_URL of [
+      'https://cache.example.com',
+      'rediss://cache.example.com/invalid',
+      'redis://cache.example.com/0?unsafe=true',
+    ])
+      expect(() => parseEnvironment({ ...base, REDIS_URL })).toThrow('REDIS_URL');
+  });
   it('rejects development capture as a production email provider', () => {
     expect(() =>
       parseEnvironment({
         DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
         ...authKeys,
         NODE_ENV: 'production',
+        ...s3,
         EMAIL_PROVIDER: 'capture',
       }),
     ).toThrow('Capture email provider');
@@ -99,6 +148,8 @@ it('rejects published production keys and insecure or implicit production origin
     DATABASE_URL: 'postgresql://test:test@localhost:5433/sme_cashflow_test',
     ...authKeys,
     NODE_ENV: 'production',
+    ...s3,
+    REDIS_URL: 'redis://cache.internal:6379',
   };
   expect(() => parseEnvironment({ ...base, CORS_ORIGINS: 'https://app.example.com' })).toThrow(
     'signing key pair',
@@ -108,16 +159,22 @@ it('rejects published production keys and insecure or implicit production origin
     'HTTPS',
   );
   const keys = generateKeyPairSync('ed25519');
+  const production = {
+    ...base,
+    CORS_ORIGINS: 'https://app.example.com',
+    AUTH_ACCESS_PRIVATE_KEY_BASE64: keys.privateKey
+      .export({ format: 'der', type: 'pkcs8' })
+      .toString('base64'),
+    AUTH_ACCESS_PUBLIC_KEY_BASE64: keys.publicKey
+      .export({ format: 'der', type: 'spki' })
+      .toString('base64'),
+  };
+  const productionWithoutRedis = { ...production };
+  delete productionWithoutRedis.REDIS_URL;
+  expect(() => parseEnvironment(productionWithoutRedis)).toThrow('REDIS_URL');
   expect(
     parseEnvironment({
-      ...base,
-      CORS_ORIGINS: 'https://app.example.com',
-      AUTH_ACCESS_PRIVATE_KEY_BASE64: keys.privateKey
-        .export({ format: 'der', type: 'pkcs8' })
-        .toString('base64'),
-      AUTH_ACCESS_PUBLIC_KEY_BASE64: keys.publicKey
-        .export({ format: 'der', type: 'spki' })
-        .toString('base64'),
+      ...production,
     }).NODE_ENV,
   ).toBe('production');
 });
