@@ -4,17 +4,21 @@ import { constants } from 'node:fs';
 import { resolve } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { S3ReportStorage } from './s3-report-storage.js';
 
 @Injectable()
 export class ReportStorage {
-  constructor(config) {
+  constructor(config, client) {
     this.root = resolve(config.get('REPORT_STORAGE_DIRECTORY') ?? '.private/reports');
+    this.remote =
+      config.get('REPORT_STORAGE_PROVIDER') === 's3' ? new S3ReportStorage(config, client) : null;
   }
   path(key) {
     if (!/^[0-9a-f-]{36}\/\b[0-9a-f-]{36}\.csv$/.test(key)) throw new Error('INVALID_ARTIFACT_KEY');
     return resolve(this.root, key);
   }
   async write(organizationId, bytes) {
+    if (this.remote) return this.remote.write(organizationId, bytes);
     const key = `${organizationId}/${randomUUID()}.csv`;
     const path = this.path(key);
     await mkdir(resolve(this.root, organizationId), { recursive: true, mode: 0o700 });
@@ -28,6 +32,7 @@ export class ReportStorage {
     return { key, checksum: createHash('sha256').update(bytes).digest('hex') };
   }
   async read(key, checksum, organizationId) {
+    if (this.remote) return this.remote.read(key, checksum, organizationId);
     if (!key.startsWith(organizationId + '/')) throw new Error('INVALID_ARTIFACT_KEY');
     const file = await open(this.path(key), constants.O_RDONLY);
     let bytes;
@@ -53,8 +58,13 @@ export class ReportStorage {
       throw new Error('ARTIFACT_UNAVAILABLE');
     return bytes;
   }
-  async discard(key) {
+  async discard(key, organizationId) {
+    if (!key.startsWith(`${organizationId}/`)) throw new Error('INVALID_ARTIFACT_KEY');
+    if (this.remote) return this.remote.discard(key, organizationId);
     await unlink(this.path(key));
+  }
+  onModuleDestroy() {
+    this.remote?.onModuleDestroy();
   }
 }
 Inject(ConfigService)(ReportStorage, undefined, 0);

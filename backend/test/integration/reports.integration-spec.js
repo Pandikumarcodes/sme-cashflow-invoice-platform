@@ -5,6 +5,7 @@ import { notificationFixture } from '../helpers/notification-fixture.js';
 import { reportFixture, command, REPORT_RANGE, exportJob } from '../helpers/report-fixture.js';
 import { ExpensesService } from '../../src/modules/expenses/application/expenses.service.js';
 import { OrganizationInvoiceSettings } from '../../src/modules/organizations/application/organization-invoice-settings.js';
+import { S3ReportStorage } from '../../src/modules/reports/infrastructure/s3-report-storage.js';
 
 jest.setTimeout(30000);
 describe('report exports PostgreSQL lifecycle and financial reconciliation', () => {
@@ -98,6 +99,57 @@ describe('report exports PostgreSQL lifecycle and financial reconciliation', () 
     }
     expect(await prisma.invoice.findMany({ orderBy: { id: 'asc' } })).toEqual(before);
     expect(await prisma.auditLog.count({ where: { action: 'report.export.download' } })).toBe(6);
+  });
+  it('downloads a worker-created private object through an independent API storage instance', async () => {
+    const objects = new Map();
+    const client = {
+      send: async (command) => {
+        const { Key, Body } = command.input;
+        if (command.constructor.name === 'PutObjectCommand') {
+          objects.set(Key, Body);
+          return {};
+        }
+        if (command.constructor.name === 'GetObjectCommand') {
+          const value = objects.get(Key);
+          if (!value) throw new Error('NoSuchKey');
+          return {
+            ContentLength: value.length,
+            Body: (async function* () {
+              yield value;
+            })(),
+          };
+        }
+        if (command.constructor.name === 'DeleteObjectCommand') {
+          objects.delete(Key);
+          return {};
+        }
+        throw new Error('Unexpected object command');
+      },
+    };
+    const settings = {
+      getOrThrow: (name) =>
+        ({ REPORT_S3_BUCKET: 'fake-private-bucket', REPORT_S3_OBJECT_PREFIX: 'test/reports' })[
+          name
+        ],
+      get: () => undefined,
+    };
+    r.generation.storage = new S3ReportStorage(settings, client);
+    r.reports.storage = new S3ReportStorage(settings, client);
+    const { data } = await request('CASH_FLOW');
+    await r.generation.handleEvent(await exportJob(prisma, data));
+    const completed = await row(data.id);
+    expect(completed.status).toBe('READY');
+    expect([...objects.keys()]).toEqual([`test/reports/${completed.storageObjectKey}`]);
+    await expect(r.reports.download(b.tenant, data.id)).rejects.toMatchObject({
+      code: 'RESOURCE_NOT_FOUND',
+    });
+    const downloaded = await r.reports.download(a.tenant, data.id);
+    expect(downloaded.bytes.toString()).toContain('netCashFlow');
+    expect(downloaded.filename).toBe(`cash_flow-${data.id}.csv`);
+    objects.clear();
+    await expect(r.reports.download(a.tenant, data.id)).rejects.toMatchObject({
+      code: 'EXPORT_ARTIFACT_UNAVAILABLE',
+    });
   });
   it('reconciles registers, cash and aging using current facts after reversals/voids and archived dimensions', async () => {
     const paid = await payment();

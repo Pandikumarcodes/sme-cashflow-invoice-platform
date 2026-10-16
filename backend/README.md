@@ -2,7 +2,7 @@
 
 JavaScript NestJS modular monolith. Shared contracts, feature notes and architecture remain in the [root README](../README.md) and [planning documents](../docs/repository-blueprint.md).
 
-Run commands from `backend/`. This package owns `src/`, `prisma/`, `test/`, `scripts/`, `.env`, `node_modules/`, `dist/` and `.private/`. Relative report storage stays `.private/reports` within this directory; existing artifacts move with it. API and worker must use the same working directory/storage configuration. Absolute configured storage paths retain their original meaning.
+Run commands from `backend/`. This package owns `src/`, `prisma/`, `test/`, `scripts/`, `.env`, `node_modules/`, `dist/` and `.private/`. Local development defaults to `REPORT_STORAGE_PROVIDER=local`; relative report storage stays `.private/reports` within this directory, and API/worker must use the same directory. Deployments use `REPORT_STORAGE_PROVIDER=s3` with identical private bucket, region, endpoint (if needed), credentials and prefix in the API and worker secret stores. Production mode rejects local report storage. See [report storage staging verification](../docs/report-storage-staging-verification.md).
 
 ```powershell
 npm.cmd ci
@@ -15,7 +15,7 @@ npm.cmd run start:dev
 
 Copy the example only during fresh setup; preserve existing local values. `infra:up` uses the unchanged root Compose file and this package's `.env`. From repository root, the equivalent is `docker compose --env-file backend/.env -f docker-compose.yml up -d postgres redis`. Existing named volumes and Compose project remain unchanged. There is no application Dockerfile or container build context.
 
-Nest Config loads this directory's `.env`; API and worker start scripts explicitly load it with Node as well, so local signing keys and other settings are present before module validation. Run these commands from `backend/`. Worker and infrastructure-backed test scripts also explicitly load it. Prisma discovers this package's `prisma/schema.prisma`, migrations and seed. The frontend stays on `http://localhost:5173`, API on `http://localhost:3000/api/v1`, with unchanged credentialed CORS/cookies.
+Nest Config loads this directory's `.env`; API and worker start scripts explicitly load it with Node as well, so local signing keys and other settings are present before module validation. Run these commands from `backend/`. Worker and infrastructure-backed test scripts also explicitly load it. Prisma discovers this package's `prisma/schema.prisma`, migrations and seed. The frontend stays on `http://localhost:5173`, API on `http://localhost:3000/api/v1`, with unchanged credentialed CORS/cookies. Local development uses the existing `REDIS_HOST` settings. Production mode requires `REDIS_URL`, accepting a managed `redis://` private URL or a TLS `rediss://` URL; the URL is parsed without logging it.
 
 ```powershell
 npm.cmd run format:check
